@@ -107,6 +107,7 @@ export const notificationService = {
             categoryIdentifier: MED_CATEGORY_ID,
             data: {
               type: 'medication_reminder',
+              targetRoute: 'today',
               medicationId: medication.id,
               medicationName: medication.name,
               dosage: medication.dosage,
@@ -159,8 +160,106 @@ export const notificationService = {
             sound: true,
             data: {
               type: 'missed_check_in_alert',
+              targetRoute: 'today',
               circleName,
               deadlineTime,
+            },
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+            seconds: Math.max(1, secondsFromNow),
+          },
+        });
+      }
+    } catch {
+      // Local fallback
+    }
+
+    activeScheduledNotifications.unshift({
+      id,
+      title,
+      body,
+      triggerSeconds: secondsFromNow,
+      scheduledAt: new Date().toISOString(),
+    });
+
+    return id;
+  },
+
+  /**
+   * Schedule Emergency Help Alert
+   */
+  async scheduleEmergencyHelpAlert(
+    elderName: string,
+    circleId: string,
+    secondsFromNow: number = 1
+  ): Promise<string> {
+    const title = `🚨 HELP NEEDED: ${elderName}`;
+    const body = `Emergency alert triggered by ${elderName}. Immediate assistance requested!`;
+
+    let id = `help-alert-${Date.now()}`;
+
+    try {
+      if (Platform.OS !== 'web') {
+        id = await Notifications.scheduleNotificationAsync({
+          content: {
+            title,
+            body,
+            sound: true,
+            data: {
+              type: 'help_alert',
+              targetRoute: 'timeline',
+              elderName,
+              circleId,
+            },
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+            seconds: Math.max(1, secondsFromNow),
+          },
+        });
+      }
+    } catch {
+      // Local fallback
+    }
+
+    activeScheduledNotifications.unshift({
+      id,
+      title,
+      body,
+      triggerSeconds: secondsFromNow,
+      scheduledAt: new Date().toISOString(),
+    });
+
+    return id;
+  },
+
+  /**
+   * Schedule Shift Handoff Alert
+   */
+  async scheduleShiftHandoffAlert(
+    fromCaregiver: string,
+    handoffNote: string,
+    circleId: string,
+    secondsFromNow: number = 1
+  ): Promise<string> {
+    const title = `📋 Shift Handoff: ${fromCaregiver}`;
+    const body = handoffNote ? `Handoff note: ${handoffNote}` : 'Shift completed. Tap to view coverage.';
+
+    let id = `handoff-alert-${Date.now()}`;
+
+    try {
+      if (Platform.OS !== 'web') {
+        id = await Notifications.scheduleNotificationAsync({
+          content: {
+            title,
+            body,
+            sound: true,
+            data: {
+              type: 'shift_handoff',
+              targetRoute: 'coverage',
+              fromCaregiver,
+              circleId,
             },
           },
           trigger: {

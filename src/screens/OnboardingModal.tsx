@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Button } from '../components/Button';
+import { EXTERNAL_URLS, openExternalUrl } from '../lib/deepLinking';
 
 export const ONBOARDING_KEY = '@elderlycare_has_onboarded_v1';
 
@@ -136,6 +137,25 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
             onPress={handleNext}
             style={styles.actionButton}
           />
+
+          {/* Legal / Support footer links */}
+          <View style={styles.footerLinks}>
+            <TouchableOpacity
+              onPress={() => openExternalUrl(EXTERNAL_URLS.PRIVACY_POLICY, 'Privacy Policy')}
+              accessibilityRole="link"
+              accessibilityLabel="Privacy Policy"
+            >
+              <Text style={styles.footerLinkText}>Privacy Policy</Text>
+            </TouchableOpacity>
+            <Text style={styles.footerDot}>•</Text>
+            <TouchableOpacity
+              onPress={() => openExternalUrl(EXTERNAL_URLS.SUPPORT, 'Support')}
+              accessibilityRole="link"
+              accessibilityLabel="Support"
+            >
+              <Text style={styles.footerLinkText}>Support</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </Modal>
@@ -265,5 +285,22 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     width: '100%',
+  },
+  footerLinks: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 16,
+    gap: 8,
+  },
+  footerLinkText: {
+    fontSize: 12,
+    color: '#0E7490',
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
+  footerDot: {
+    fontSize: 12,
+    color: '#94A3B8',
   },
 });

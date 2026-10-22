@@ -22,6 +22,12 @@ const Platform = {
 const Alert = {
   alert: jest.fn(),
 };
+const Linking = {
+  openURL: jest.fn().mockResolvedValue(true),
+  canOpenURL: jest.fn().mockResolvedValue(true),
+  getInitialURL: jest.fn().mockResolvedValue(null),
+  addEventListener: jest.fn().mockReturnValue({ remove: jest.fn() }),
+};
 
 module.exports = {
   View,
@@ -34,4 +40,5 @@ module.exports = {
   StyleSheet,
   Platform,
   Alert,
+  Linking,
 };

@@ -347,6 +347,26 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
             </TouchableOpacity>
           </View>
 
+          {/* Quick Coverage Link Card */}
+          <TouchableOpacity
+            onPress={onNavigateToCoverage}
+            style={styles.coverageShortcutCard}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="View Caregiver Shift Coverage"
+          >
+            <View style={styles.coverageShortcutContent}>
+              <Text style={styles.coverageShortcutIcon}>👥</Text>
+              <View style={styles.coverageShortcutTextCol}>
+                <Text style={styles.coverageShortcutTitle}>Caregiver Shift Coverage</Text>
+                <Text style={styles.coverageShortcutSub}>
+                  View active caregiver, task checklists & handoff notes
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.coverageShortcutChevron}>→</Text>
+          </TouchableOpacity>
+
           {/* 2. Today's Medications List */}
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionHeading}>Today’s Medications</Text>
@@ -778,5 +798,49 @@ const styles = StyleSheet.create({
   emptyCardText: {
     fontSize: 15,
     color: '#64748B',
+  },
+  coverageShortcutCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  coverageShortcutContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  coverageShortcutIcon: {
+    fontSize: 28,
+    marginRight: 12,
+  },
+  coverageShortcutTextCol: {
+    flex: 1,
+  },
+  coverageShortcutTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  coverageShortcutSub: {
+    fontSize: 13,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  coverageShortcutChevron: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#0E7490',
+    marginLeft: 8,
   },
 });

@@ -19,12 +19,14 @@ interface CircleSelectScreenProps {
   currentUser: UserProfile;
   onSelectCircle: (circle: CareCircle) => void;
   onSignOut: () => void;
+  onSwitchToElderMode?: () => void;
 }
 
 export const CircleSelectScreen: React.FC<CircleSelectScreenProps> = ({
   currentUser,
   onSelectCircle,
   onSignOut,
+  onSwitchToElderMode,
 }) => {
   const [circles, setCircles] = useState<CareCircle[]>([]);
   const [loading, setLoading] = useState(true);
@@ -188,6 +190,15 @@ export const CircleSelectScreen: React.FC<CircleSelectScreenProps> = ({
               }}
               style={styles.actionBtn}
             />
+
+            {onSwitchToElderMode ? (
+              <Button
+                title="👵 Switch to Elder Mode (4-Digit PIN)"
+                variant="outline"
+                onPress={onSwitchToElderMode}
+                style={[styles.actionBtn, styles.elderSwitchBtn]}
+              />
+            ) : null}
           </View>
         )}
 
@@ -424,5 +435,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     marginVertical: 8,
+  },
+  elderSwitchBtn: {
+    marginTop: 8,
+    borderWidth: 1.5,
+    borderColor: '#0E7490',
   },
 });

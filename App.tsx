@@ -1,9 +1,10 @@
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { isSupabaseConfigured, supabase } from './src/lib/supabase';
+import { parseDeepLink } from './src/lib/deepLinking';
 import { AuthScreen } from './src/screens/AuthScreen';
 import { CircleSelectScreen } from './src/screens/CircleSelectScreen';
 import { ElderHomeScreen } from './src/screens/ElderHomeScreen';
@@ -17,6 +18,7 @@ import { SEED_CARE_CIRCLE } from './src/services/mockData';
 import { CareCircle, ElderSession, UserProfile } from './src/types/database';
 import { offlineService } from './src/services/offlineService';
 import { careCircleService } from './src/services/careCircleService';
+import { notificationService } from './src/services/notificationService';
 
 export default function App() {
   const [appMode, setAppMode] = useState<'caregiver' | 'elder'>('caregiver');
@@ -37,54 +39,120 @@ export default function App() {
     });
 
     // Listen to offline connectivity changes
-    const unsub = offlineService.addConnectivityListener((offline) => {
+    const unsubOffline = offlineService.addConnectivityListener((offline) => {
       setIsOffline(offline);
     });
 
-    if (!isSupabaseConfigured()) {
-      return unsub;
+    // Deep link intent router
+    const handleDeepLinkUrl = async (url?: string | null) => {
+      if (!url) return;
+      const intent = parseDeepLink(url);
+
+      if (intent.type === 'auth_callback') {
+        if (intent.accessToken && intent.refreshToken && isSupabaseConfigured()) {
+          try {
+            await supabase.auth.setSession({
+              access_token: intent.accessToken,
+              refresh_token: intent.refreshToken,
+            });
+            setSyncNotice('✓ Magic Link verified. Authenticated successfully!');
+            setTimeout(() => setSyncNotice(null), 4000);
+          } catch (err) {
+            console.warn('Failed to set session from deep link:', err);
+          }
+        }
+      } else if (intent.type === 'circle_join') {
+        if (currentUser) {
+          try {
+            const joined = await careCircleService.joinCareCircleByCode(
+              intent.inviteCode,
+              currentUser.id,
+              currentUser
+            );
+            setActiveCircle(joined);
+            setActiveTab('today');
+            setSyncNotice(`✓ Joined ${joined.name}!`);
+            setTimeout(() => setSyncNotice(null), 4000);
+          } catch (err) {
+            console.warn('Could not auto-join circle from deep link:', err);
+          }
+        }
+      } else if (intent.type === 'navigate') {
+        setActiveTab(intent.screen);
+      } else if (intent.type === 'elder_mode') {
+        setAppMode('elder');
+      }
+    };
+
+    // Cold boot URL check
+    Linking.getInitialURL().then(handleDeepLinkUrl);
+
+    // Runtime URL listener
+    const linkingSub = Linking.addEventListener('url', (event) => {
+      handleDeepLinkUrl(event.url);
+    });
+
+    // App-level notification response routing
+    notificationService.initialize();
+    const unsubNotif = notificationService.addResponseListener((action, data) => {
+      const targetRoute = (data.targetRoute as string) || (data.route as string);
+      const notifType = data.type as string;
+
+      if (targetRoute === 'today' || notifType === 'medication_reminder' || notifType === 'missed_check_in_alert') {
+        setActiveTab('today');
+      } else if (targetRoute === 'coverage' || notifType === 'shift_handoff') {
+        setActiveTab('coverage');
+      } else if (targetRoute === 'timeline' || notifType === 'help_alert') {
+        setActiveTab('timeline');
+      }
+    });
+
+    let authUnsub: (() => void) | null = null;
+
+    if (isSupabaseConfigured()) {
+      const { data: authListener } = supabase.auth.onAuthStateChange(
+        async (event, session) => {
+          if (session?.user) {
+            try {
+              const { data: profile } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', session.user.id)
+                .single();
+
+              if (profile) {
+                setCurrentUser(profile as UserProfile);
+              } else {
+                setCurrentUser({
+                  id: session.user.id,
+                  email: session.user.email || '',
+                  full_name:
+                    session.user.user_metadata?.full_name ||
+                    session.user.email?.split('@')[0] ||
+                    'Caregiver',
+                  avatar_url: null,
+                  created_at: session.user.created_at,
+                });
+              }
+            } catch {
+              // Profile fetch optional fallback
+            }
+          } else if (event === 'SIGNED_OUT') {
+            setCurrentUser(null);
+            setActiveCircle(null);
+          }
+        }
+      );
+      authUnsub = () => authListener.subscription.unsubscribe();
     }
 
-    // Supabase auth listener
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (session?.user) {
-          try {
-            const { data: profile } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', session.user.id)
-              .single();
-
-            if (profile) {
-              setCurrentUser(profile as UserProfile);
-            } else {
-              setCurrentUser({
-                id: session.user.id,
-                email: session.user.email || '',
-                full_name:
-                  session.user.user_metadata?.full_name ||
-                  session.user.email?.split('@')[0] ||
-                  'Caregiver',
-                avatar_url: null,
-                created_at: session.user.created_at,
-              });
-            }
-          } catch {
-            // Profile fetch optional fallback
-          }
-        } else if (event === 'SIGNED_OUT') {
-          setCurrentUser(null);
-          setActiveCircle(null);
-        }
-      }
-    );
-
     return () => {
-      unsub();
-      authListener.subscription.unsubscribe();
+      unsubOffline();
+      linkingSub.remove();
+      unsubNotif();
+      if (authUnsub) authUnsub();
     };
-  }, []);
+  }, [currentUser]);
 
   const handleToggleAirplaneMode = async () => {
     const nextOffline = !isOffline;
@@ -220,6 +288,7 @@ export default function App() {
                 currentUser={currentUser}
                 onSelectCircle={handleSelectCircle}
                 onSignOut={handleSignOut}
+                onSwitchToElderMode={() => setAppMode('elder')}
               />
             ) : activeTab === 'today' ? (
               <TodayScreen

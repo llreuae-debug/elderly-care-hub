@@ -136,8 +136,8 @@ serve(async (req: Request) => {
         const primaryPhone = circle.primary_caregiver_phone || Deno.env.get('FALLBACK_CAREGIVER_PHONE');
         let smsResultStatus = 'skipped_no_phone';
 
-        if (primaryPhone && twilioAccountSid && twilioAuthToken && twilioFromNumber) {
-          const smsBody = `URGENT [Elderly Care Hub]: ${circle.name} missed daily check-in (deadline ${deadlineStr}). 30-min escalation window expired without confirmation. Please call or visit immediately.`;
+          const checkInUrl = `https://elderlycarehub.example.com/checkin?circle=${encodeURIComponent(circle.id)}`;
+          const smsBody = `URGENT [Elderly Care Hub]: ${circle.name} missed daily check-in (deadline ${deadlineStr}). 30-min escalation window expired without confirmation. Check status: ${checkInUrl} or open app: elderlycare://today`;
 
           const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`;
           const formData = new URLSearchParams();

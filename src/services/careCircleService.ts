@@ -828,9 +828,9 @@ export const careCircleService = {
     );
 
     // 2. Broadcast push notification
-    await notificationService.scheduleMissedCheckInAlert(
-      `🚨 HELP NEEDED: ${elderName}`,
-      'IMMEDIATELY',
+    await notificationService.scheduleEmergencyHelpAlert(
+      elderName,
+      circleId,
       1
     );
 
@@ -1766,9 +1766,10 @@ export const careCircleService = {
     // 2. Notify Next Caregiver via Push Alert
     let nextCaregiverNotified = false;
     if (nextShift) {
-      await notificationService.scheduleMissedCheckInAlert(
-        `📋 Shift Handoff from ${caregiverFirstName}`,
-        `${handoffNote}`,
+      await notificationService.scheduleShiftHandoffAlert(
+        caregiverFirstName,
+        handoffNote,
+        shift.care_circle_id,
         1
       );
       nextCaregiverNotified = true;

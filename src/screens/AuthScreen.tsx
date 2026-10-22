@@ -6,6 +6,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import { Button } from '../components/Button';
@@ -14,6 +15,7 @@ import { isSupabaseConfigured } from '../lib/supabase';
 import { careCircleService } from '../services/careCircleService';
 import { SEED_PROFILES } from '../services/mockData';
 import { UserProfile } from '../types/database';
+import { EXTERNAL_URLS, openExternalUrl } from '../lib/deepLinking';
 
 interface AuthScreenProps {
   onAuthenticated: (user: UserProfile) => void;
@@ -161,6 +163,33 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
             />
           ) : null}
         </View>
+
+        {/* Footer Legal & Support Links */}
+        <View style={styles.footerLinks}>
+          <TouchableOpacity
+            onPress={() => openExternalUrl(EXTERNAL_URLS.PRIVACY_POLICY, 'Privacy Policy')}
+            accessibilityRole="link"
+            accessibilityLabel="Privacy Policy"
+          >
+            <Text style={styles.footerLinkText}>Privacy Policy</Text>
+          </TouchableOpacity>
+          <Text style={styles.footerDot}>•</Text>
+          <TouchableOpacity
+            onPress={() => openExternalUrl(EXTERNAL_URLS.TERMS_OF_SERVICE, 'Terms of Service')}
+            accessibilityRole="link"
+            accessibilityLabel="Terms of Service"
+          >
+            <Text style={styles.footerLinkText}>Terms</Text>
+          </TouchableOpacity>
+          <Text style={styles.footerDot}>•</Text>
+          <TouchableOpacity
+            onPress={() => openExternalUrl(EXTERNAL_URLS.SUPPORT, 'Support')}
+            accessibilityRole="link"
+            accessibilityLabel="Support"
+          >
+            <Text style={styles.footerLinkText}>Support</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -296,5 +325,23 @@ const styles = StyleSheet.create({
     marginTop: 8,
     borderWidth: 2,
     borderColor: '#0E7490',
+  },
+  footerLinks: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 28,
+    marginBottom: 16,
+    gap: 8,
+  },
+  footerLinkText: {
+    fontSize: 13,
+    color: '#0E7490',
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
+  footerDot: {
+    fontSize: 13,
+    color: '#94A3B8',
   },
 });

@@ -237,12 +237,32 @@ export interface SubscriptionRecord {
   created_at: string;
 }
 
+export interface MetricTimeSeriesPoint {
+  period: string; // "YYYY-MM"
+  metricValue: number;
+  secondaryValue?: number;
+  label?: string;
+}
+
+export interface DataQualityReport {
+  events_last_24h: number;
+  events_rejected_rls: number;
+  twilio_sends_count: number;
+  twilio_usage_rows_count: number;
+  twilio_discrepancy_delta: number;
+  subscriptions_invalid_plan_count: number;
+  is_healthy: boolean;
+  status_message: string;
+}
+
 export interface BusinessMetricsSummary {
   conversion: {
     cohortMonth: string;
     totalCirclesOrUsers: number;
     paidConversions: number;
     conversionRatePct: number;
+    hasData: boolean;
+    timeSeries: MetricTimeSeriesPoint[];
   };
   churn: {
     activeSubscribers: number;
@@ -251,22 +271,30 @@ export interface BusinessMetricsSummary {
     involuntaryPaymentFailures: number;
     involuntaryChurnRatePct: number;
     totalChurnRatePct: number;
+    hasData: boolean;
+    timeSeries: MetricTimeSeriesPoint[];
   };
   arpu: {
     totalRevenueUsd: number;
     payingUsersCount: number;
     arpuUsd: number;
+    hasData: boolean;
+    timeSeries: MetricTimeSeriesPoint[];
   };
   smsCostPerUser: {
     totalTwilioSpendUsd: number;
     activeFamilyUsersCount: number;
     costPerUserUsd: number;
+    hasData: boolean;
+    timeSeries: MetricTimeSeriesPoint[];
   };
   activation: {
     totalCircles: number;
     activatedCircles: number;
     activationRatePct: number;
     averageTimeToActivateHours: number;
+    hasData: boolean;
+    timeSeries: MetricTimeSeriesPoint[];
   };
   caregiverInvites: {
     totalCircles: number;
@@ -274,7 +302,10 @@ export interface BusinessMetricsSummary {
     invitesPerCircle: number;
     totalInvitesAccepted: number;
     inviteAcceptanceRatePct: number;
+    hasData: boolean;
+    timeSeries: MetricTimeSeriesPoint[];
   };
+  dataQuality: DataQualityReport;
 }
 
 export interface QueuedCheckIn {

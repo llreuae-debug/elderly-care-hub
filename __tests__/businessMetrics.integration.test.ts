@@ -431,4 +431,48 @@ describe('Business Metrics Instrumentation & Measurement Layer (6 Metrics)', () 
       });
     });
   });
+
+  describe('Phase 3 Dashboard Data Quality & Empty States', () => {
+    it('verifies Data Quality panel reports healthy status when all integrity checks pass', async () => {
+      const summary = await billingAnalyticsService.getBusinessMetricsSummary(cohort);
+
+      expect(summary.dataQuality).toBeDefined();
+      expect(typeof summary.dataQuality.events_last_24h).toBe('number');
+      expect(summary.dataQuality.events_rejected_rls).toBe(0);
+      expect(summary.dataQuality.subscriptions_invalid_plan_count).toBe(0);
+      expect(summary.dataQuality.twilio_discrepancy_delta).toBe(0);
+      expect(summary.dataQuality.is_healthy).toBe(true);
+      expect(summary.dataQuality.status_message).toContain('All 4 data integrity checks passed');
+    });
+
+    it('returns empty states (hasData = false, empty timeSeries) when no events exist for a metric', async () => {
+      // Clean reset without any seeds
+      billingAnalyticsService.reset(false);
+      analyticsService.reset();
+
+      const emptySummary = await billingAnalyticsService.getBusinessMetricsSummary(cohort, false);
+
+      expect(emptySummary.conversion.hasData).toBe(false);
+      expect(emptySummary.conversion.timeSeries).toEqual([]);
+
+      expect(emptySummary.activation.hasData).toBe(false);
+      expect(emptySummary.activation.timeSeries).toEqual([]);
+
+      expect(emptySummary.caregiverInvites.hasData).toBe(false);
+      expect(emptySummary.caregiverInvites.timeSeries).toEqual([]);
+    });
+
+    it('populates time series cohort points when valid data is ingested', async () => {
+      billingAnalyticsService.reset(true); // populate demo baseline
+
+      const summary = await billingAnalyticsService.getBusinessMetricsSummary(cohort, false);
+
+      expect(summary.conversion.hasData).toBe(true);
+      expect(summary.conversion.timeSeries.length).toBeGreaterThan(0);
+      expect(summary.conversion.timeSeries[0].period).toBe('2026-08');
+
+      expect(summary.activation.hasData).toBe(true);
+      expect(summary.activation.timeSeries.length).toBeGreaterThan(0);
+    });
+  });
 });

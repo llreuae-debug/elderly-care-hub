@@ -1,6 +1,35 @@
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
 import { AnalyticsEvent, AnalyticsEventName } from '../types/database';
 
+const FORBIDDEN_PII_KEYS = new Set([
+  'email',
+  'phone',
+  'telephone',
+  'mobile',
+  'name',
+  'first_name',
+  'last_name',
+  'elder_name',
+  'address',
+  'street',
+  'ssn',
+  'medication',
+  'notes',
+  'note_content',
+]);
+
+function sanitizeProperties(
+  props: Record<string, string | number | boolean | null>
+): Record<string, string | number | boolean | null> {
+  const clean: Record<string, string | number | boolean | null> = {};
+  for (const [k, v] of Object.entries(props)) {
+    if (!FORBIDDEN_PII_KEYS.has(k)) {
+      clean[k] = v;
+    }
+  }
+  return clean;
+}
+
 let inMemoryAnalytics: AnalyticsEvent[] = [];
 
 export const analyticsService = {
@@ -13,12 +42,14 @@ export const analyticsService = {
     userId?: string | null,
     circleId?: string | null
   ): Promise<AnalyticsEvent> {
+    const sanitizedProps = sanitizeProperties(properties);
+
     const event: AnalyticsEvent = {
       id: `evt-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
       event_name: eventName,
       user_id: userId || null,
       care_circle_id: circleId || null,
-      properties,
+      properties: sanitizedProps,
       created_at: new Date().toISOString(),
     };
 

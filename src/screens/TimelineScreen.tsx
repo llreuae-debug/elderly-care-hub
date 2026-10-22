@@ -13,6 +13,7 @@ import { Button } from '../components/Button';
 import { FilterBar, FilterOption } from '../components/FilterBar';
 import { TimelineCard } from '../components/TimelineCard';
 import { isSupabaseConfigured } from '../lib/supabase';
+import { billingAnalyticsService } from '../services/billingAnalyticsService';
 import { careCircleService } from '../services/careCircleService';
 import {
   CareCircle,
@@ -91,6 +92,11 @@ export const TimelineScreen: React.FC<TimelineScreenProps> = ({
 
   const handleCopyCode = () => {
     setCopiedCodeBanner(true);
+    // Track caregiver invite sent (Metric 6 - Zero PII)
+    billingAnalyticsService
+      .recordCaregiverInviteSent(circle.id, 'copy_code')
+      .catch((err) => console.warn('Failed to record invite sent event:', err));
+
     setTimeout(() => {
       setCopiedCodeBanner(false);
     }, 2500);

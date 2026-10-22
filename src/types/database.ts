@@ -186,11 +186,20 @@ export interface NotificationAuditLog {
 
 export type AnalyticsEventName =
   | 'check_in_completed'
+  | 'first_check_in_completed'
   | 'check_in_missed'
   | 'help_button_pressed'
   | 'handoff_note_written'
   | 'app_opened'
-  | 'screen_viewed';
+  | 'screen_viewed'
+  | 'circle_created'
+  | 'caregiver_invite_sent'
+  | 'caregiver_invite_accepted'
+  | 'subscription_started'
+  | 'subscription_cancelled'
+  | 'payment_failed'
+  | 'payment_succeeded'
+  | 'sms_dispatched';
 
 export interface AnalyticsEvent {
   id: string;
@@ -199,6 +208,60 @@ export interface AnalyticsEvent {
   care_circle_id?: string | null;
   properties: Record<string, string | number | boolean | null>;
   created_at: string;
+}
+
+export interface SubscriptionRecord {
+  id: string;
+  care_circle_id: string;
+  user_id: string;
+  plan_id: 'family_monthly' | 'family_annual';
+  status: 'active' | 'cancelled' | 'past_due' | 'failed';
+  price_usd: number;
+  billing_cycle: 'monthly' | 'annual';
+  cohort_month: string;
+  started_at: string;
+  cancelled_at?: string | null;
+  created_at: string;
+}
+
+export interface BusinessMetricsSummary {
+  conversion: {
+    cohortMonth: string;
+    totalCirclesOrUsers: number;
+    paidConversions: number;
+    conversionRatePct: number;
+  };
+  churn: {
+    activeSubscribers: number;
+    voluntaryCancellations: number;
+    voluntaryChurnRatePct: number;
+    involuntaryPaymentFailures: number;
+    involuntaryChurnRatePct: number;
+    totalChurnRatePct: number;
+  };
+  arpu: {
+    totalRevenueUsd: number;
+    payingUsersCount: number;
+    arpuUsd: number;
+  };
+  smsCostPerUser: {
+    totalTwilioSpendUsd: number;
+    activeFamilyUsersCount: number;
+    costPerUserUsd: number;
+  };
+  activation: {
+    totalCircles: number;
+    activatedCircles: number;
+    activationRatePct: number;
+    averageTimeToActivateHours: number;
+  };
+  caregiverInvites: {
+    totalCircles: number;
+    totalInvitesSent: number;
+    invitesPerCircle: number;
+    totalInvitesAccepted: number;
+    inviteAcceptanceRatePct: number;
+  };
 }
 
 export interface QueuedCheckIn {

@@ -1,6 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useState } from 'react';
-import { Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Linking, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { isSupabaseConfigured, supabase } from './src/lib/supabase';
@@ -12,6 +12,7 @@ import { ElderLoginScreen } from './src/screens/ElderLoginScreen';
 import { CoverageScreen } from './src/screens/CoverageScreen';
 import { TimelineScreen } from './src/screens/TimelineScreen';
 import { TodayScreen } from './src/screens/TodayScreen';
+import { AnalyticsDashboardScreen } from './src/screens/AnalyticsDashboardScreen';
 import { OnboardingModal, ONBOARDING_KEY } from './src/screens/OnboardingModal';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { SEED_CARE_CIRCLE } from './src/services/mockData';
@@ -27,6 +28,7 @@ export default function App() {
   const [activeCircle, setActiveCircle] = useState<CareCircle | null>(null);
   const [activeTab, setActiveTab] = useState<'today' | 'coverage' | 'timeline'>('today');
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showMetrics, setShowMetrics] = useState(false);
   const [isOffline, setIsOffline] = useState(offlineService.isOffline());
   const [syncNotice, setSyncNotice] = useState<string | null>(null);
 
@@ -217,6 +219,15 @@ export default function App() {
 
             <View style={styles.networkToolbarRight}>
               <TouchableOpacity
+                onPress={() => setShowMetrics(true)}
+                style={styles.tutorialButton}
+                accessibilityRole="button"
+                accessibilityLabel="Business Metrics"
+              >
+                <Text style={styles.tutorialButtonText}>📊 Metrics</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
                 onPress={() => setShowOnboarding(true)}
                 style={styles.tutorialButton}
                 accessibilityRole="button"
@@ -322,6 +333,17 @@ export default function App() {
             visible={showOnboarding}
             onComplete={() => setShowOnboarding(false)}
           />
+
+          {/* Business Metrics Dashboard Modal Overlay */}
+          <Modal
+            visible={showMetrics}
+            animationType="slide"
+            onRequestClose={() => setShowMetrics(false)}
+          >
+            <SafeAreaView style={styles.safeArea} edges={['top', 'bottom', 'left', 'right']}>
+              <AnalyticsDashboardScreen onClose={() => setShowMetrics(false)} />
+            </SafeAreaView>
+          </Modal>
         </SafeAreaView>
       </SafeAreaProvider>
     </ErrorBoundary>

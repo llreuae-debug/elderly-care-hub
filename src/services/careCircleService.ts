@@ -229,6 +229,15 @@ export const careCircleService = {
 
       localCircles.unshift(newCircle);
       localMembers.unshift(newMember);
+
+      const cohortMonth = new Date().toISOString().substring(0, 7);
+      await analyticsService.track(
+        'circle_created',
+        { cohort_month: cohortMonth, initial_member_role: 'admin' },
+        userId,
+        newCircle.id
+      );
+
       return newCircle;
     }
 
@@ -257,6 +266,14 @@ export const careCircleService = {
     if (memberError) {
       throw new Error(`Circle created but failed to add admin member: ${memberError.message}`);
     }
+
+    const cohortMonth = new Date().toISOString().substring(0, 7);
+    await analyticsService.track(
+      'circle_created',
+      { cohort_month: cohortMonth, initial_member_role: 'admin' },
+      userId,
+      circle.id
+    );
 
     return circle;
   },
@@ -295,6 +312,13 @@ export const careCircleService = {
         });
       }
 
+      await analyticsService.track(
+        'caregiver_invite_accepted',
+        { role: 'viewer' },
+        userId,
+        circle.id
+      );
+
       return circle;
     }
 
@@ -326,6 +350,13 @@ export const careCircleService = {
     if (joinError) {
       throw new Error(`Failed to join circle: ${joinError.message}`);
     }
+
+    await analyticsService.track(
+      'caregiver_invite_accepted',
+      { role: 'viewer' },
+      userId,
+      circle.id
+    );
 
     return circle;
   },
@@ -850,7 +881,15 @@ export const careCircleService = {
 
     await analyticsService.track(
       'help_button_pressed',
-      { circleId, elderName, primaryPhone },
+      { elderName, channel: 'sms_and_push', is_emergency: true },
+      null,
+      circleId
+    );
+
+    // Track SMS carrier usage for Metric 4 (Zero PII)
+    await analyticsService.track(
+      'sms_dispatched',
+      { cost_usd: 0.0079, provider: 'twilio', escalation_stage: 2 },
       null,
       circleId
     );
@@ -1156,10 +1195,33 @@ export const careCircleService = {
 
       await analyticsService.track(
         'check_in_completed',
-        { circleId, userId, status: 'ok' },
+        { status: 'ok' },
         userId,
         circleId
       );
+
+      // Metric 5: Activation (First check-in completed)
+      const priorCount = localCheckIns.filter(
+        (c) => c.care_circle_id === circleId && c.status === 'ok'
+      ).length;
+      if (priorCount <= 1) {
+        const circleObj = localCircles.find((c) => c.id === circleId);
+        const createdAtMs = circleObj
+          ? new Date(circleObj.created_at).getTime()
+          : now.getTime() - 7200000;
+        const ttaSeconds = Math.max(1, Math.round((now.getTime() - createdAtMs) / 1000));
+        const ttaHours = Math.round((ttaSeconds / 3600) * 10) / 10;
+        await analyticsService.track(
+          'first_check_in_completed',
+          {
+            time_to_activate_seconds: ttaSeconds,
+            time_to_activate_hours: ttaHours,
+            is_first_check_in: true,
+          },
+          userId,
+          circleId
+        );
+      }
 
       return { checkIn: existing, timelineEvent };
     }
@@ -1266,9 +1328,18 @@ export const careCircleService = {
         );
       }
 
+      if (stage === 2) {
+        await analyticsService.track(
+          'sms_dispatched',
+          { cost_usd: 0.0079, provider: 'twilio', escalation_stage: 2 },
+          null,
+          circleId
+        );
+      }
+
       await analyticsService.track(
         'check_in_missed',
-        { circleId, stage, forceSms: !!forceSms },
+        { stage, forceSms: !!forceSms },
         null,
         circleId
       );
@@ -1289,6 +1360,15 @@ export const careCircleService = {
       const { data, error } = await supabase.functions.invoke('check-in-escalation', {
         body: { circleId, forceSms },
       });
+
+      if (forceSms) {
+        await analyticsService.track(
+          'sms_dispatched',
+          { cost_usd: 0.0079, provider: 'twilio', escalation_stage: 2 },
+          null,
+          circleId
+        );
+      }
 
       if (error) {
         return {

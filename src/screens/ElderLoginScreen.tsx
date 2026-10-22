@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import {
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -69,6 +70,11 @@ export const ElderLoginScreen: React.FC<ElderLoginScreenProps> = ({
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
+          <Image
+            source={require('../../assets/logo.png')}
+            style={styles.brandLogo}
+            resizeMode="contain"
+          />
           <Text style={styles.badge}>DIGNIFIED ELDER MODE</Text>
           <Text style={styles.title}>Elder Sign In</Text>
           <Text style={styles.subtitle}>
@@ -185,6 +191,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 20,
     maxWidth: 400,
+  },
+  brandLogo: {
+    width: 80,
+    height: 80,
+    borderRadius: 20,
+    alignSelf: 'center',
+    marginBottom: 12,
   },
   badge: {
     backgroundColor: '#DCFCE7',

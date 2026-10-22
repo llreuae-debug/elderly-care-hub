@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { careCircleService } from '../services/careCircleService';
+import { offlineService } from '../services/offlineService';
 import { ElderSession, MedicationLog } from '../types/database';
 
 interface ElderHomeScreenProps {
@@ -64,7 +65,13 @@ export const ElderHomeScreen: React.FC<ElderHomeScreenProps> = ({
       );
 
       setOkConfirmed(true);
-      setFeedbackMessage(`Thank you, ${session.elder_name}! Your family knows you are OK today.`);
+      if (offlineService.isOffline()) {
+        setFeedbackMessage(
+          `✓ Saved offline! Your check-in is queued safely and will sync to family as soon as you reconnect.`
+        );
+      } else {
+        setFeedbackMessage(`Thank you, ${session.elder_name}! Your family knows you are OK today.`);
+      }
     } catch (err) {
       Alert.alert('Notice', 'Could not record check-in.');
     } finally {

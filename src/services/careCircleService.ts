@@ -20,6 +20,9 @@ import {
 } from '../types/database';
 import { hashPin } from '../lib/crypto';
 import { notificationService } from './notificationService';
+import { analyticsService } from './analyticsService';
+import { offlineService } from './offlineService';
+import { notificationDeliveryService } from './notificationDeliveryService';
 import {
   getTodayDateString,
   SEED_CARE_CIRCLE,
@@ -328,13 +331,25 @@ export const careCircleService = {
   },
 
   /**
-   * Fetch timeline events sorted newest first
+   * Fetch timeline events sorted newest first (with offline cache support for last 50 events)
    */
   async fetchTimelineEvents(circleId: string): Promise<TimelineEvent[]> {
-    if (!isSupabaseConfigured()) {
+    if (offlineService.isOffline()) {
+      const cached = await offlineService.getCachedTimelineEvents(circleId);
+      if (cached.length > 0) {
+        return cached;
+      }
       return [...localEvents]
         .filter((e) => e.care_circle_id === circleId)
         .sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime());
+    }
+
+    if (!isSupabaseConfigured()) {
+      const events = [...localEvents]
+        .filter((e) => e.care_circle_id === circleId)
+        .sort((a, b) => new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime());
+      await offlineService.cacheTimelineEvents(circleId, events);
+      return events;
     }
 
     const { data, error } = await supabase
@@ -360,10 +375,13 @@ export const careCircleService = {
       .order('occurred_at', { ascending: false });
 
     if (error) {
+      // Offline fallback on network error
+      const cached = await offlineService.getCachedTimelineEvents(circleId);
+      if (cached.length > 0) return cached;
       throw new Error(`Failed to load timeline events: ${error.message}`);
     }
 
-    return (data || []).map((row: Record<string, unknown>) => {
+    const events = (data || []).map((row: Record<string, unknown>) => {
       const author = row.profiles as UserProfile | null;
       return {
         id: String(row.id),
@@ -377,6 +395,9 @@ export const careCircleService = {
         author,
       };
     });
+
+    await offlineService.cacheTimelineEvents(circleId, events);
+    return events;
   },
 
   /**
@@ -827,6 +848,13 @@ export const careCircleService = {
       }
     }
 
+    await analyticsService.track(
+      'help_button_pressed',
+      { circleId, elderName, primaryPhone },
+      null,
+      circleId
+    );
+
     return {
       success: true,
       timelineEvent,
@@ -1057,6 +1085,37 @@ export const careCircleService = {
       ? `Confirmed safe and well at ${formattedTime}. Notes: ${notes}`
       : `Confirmed safe and well at ${formattedTime} by ${authorProfile?.full_name || 'Family'}.`;
 
+    // Offline handling: Queue locally if offline or in simulated airplane mode
+    if (offlineService.isOffline()) {
+      await offlineService.queueCheckIn(circleId, userId, notes);
+
+      const queuedCheckIn: DailyCheckIn = {
+        id: `checkin-queued-${Date.now()}`,
+        care_circle_id: circleId,
+        checked_in_by: userId,
+        check_in_date: today,
+        checked_in_at: now.toISOString(),
+        status: 'ok',
+        escalation_stage: 0,
+        notes: notes ? `${notes} (Queued Offline)` : 'Queued offline',
+        checker_profile: authorProfile || SEED_PROFILES[userId] || null,
+      };
+
+      const queuedTimelineEvent: TimelineEvent = {
+        id: `event-queued-${Date.now()}`,
+        care_circle_id: circleId,
+        created_by: userId,
+        type: 'note',
+        title: `${timelineTitle} (Queued Offline)`,
+        description: `${timelineDesc} [Queued locally while offline — will sync automatically when reconnected]`,
+        occurred_at: now.toISOString(),
+        created_at: now.toISOString(),
+        author: authorProfile || SEED_PROFILES[userId] || null,
+      };
+
+      return { checkIn: queuedCheckIn, timelineEvent: queuedTimelineEvent };
+    }
+
     if (!isSupabaseConfigured()) {
       let existing = localCheckIns.find(
         (c) => c.care_circle_id === circleId && c.check_in_date === today
@@ -1093,6 +1152,13 @@ export const careCircleService = {
         },
         userId,
         authorProfile
+      );
+
+      await analyticsService.track(
+        'check_in_completed',
+        { circleId, userId, status: 'ok' },
+        userId,
+        circleId
       );
 
       return { checkIn: existing, timelineEvent };
@@ -1199,6 +1265,13 @@ export const careCircleService = {
           circle.created_by || 'system'
         );
       }
+
+      await analyticsService.track(
+        'check_in_missed',
+        { circleId, stage, forceSms: !!forceSms },
+        null,
+        circleId
+      );
 
       return {
         pushSent: stage >= 1,
@@ -1709,6 +1782,18 @@ export const careCircleService = {
       shift.handoff_nothing_to_report = !!input.nothing_to_report;
       shift.updated_at = nowIso;
 
+      await analyticsService.track(
+        'handoff_note_written',
+        {
+          shiftId: shift.id,
+          handoffNote,
+          nothingToReport: !!input.nothing_to_report,
+          completedTasksCount,
+        },
+        callerUserId,
+        shift.care_circle_id
+      );
+
       return {
         shift: { ...shift },
         timelineEvent,
@@ -1732,6 +1817,18 @@ export const careCircleService = {
     if (error || !data) {
       throw new Error(error ? error.message : 'Failed to update shift status');
     }
+
+    await analyticsService.track(
+      'handoff_note_written',
+      {
+        shiftId: shift.id,
+        handoffNote,
+        nothingToReport: !!input.nothing_to_report,
+        completedTasksCount,
+      },
+      callerUserId,
+      shift.care_circle_id
+    );
 
     return {
       shift: data as CaregiverShift,

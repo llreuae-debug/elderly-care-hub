@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import {
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -73,6 +74,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
+          <Image
+            source={require('../../assets/logo.png')}
+            style={styles.brandLogo}
+            resizeMode="contain"
+          />
           <Text style={styles.badge}>Caregiver Coordination Hub</Text>
           <Text style={styles.title}>Elderly Care Hub</Text>
           <Text style={styles.subtitle}>
@@ -174,6 +180,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 24,
     maxWidth: 360,
+  },
+  brandLogo: {
+    width: 84,
+    height: 84,
+    borderRadius: 20,
+    alignSelf: 'center',
+    marginBottom: 14,
   },
   badge: {
     backgroundColor: '#E0F2FE',

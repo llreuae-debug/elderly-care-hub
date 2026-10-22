@@ -169,3 +169,43 @@ export interface CoverageStatus {
   gapMessage?: string;
   allTodayShifts: CaregiverShift[];
 }
+
+// Phase 5: Production-Readiness, Audit Logs, Offline Queue & Analytics
+export interface NotificationAuditLog {
+  id: string;
+  recipient: string;
+  channel: 'sms' | 'push';
+  message: string;
+  status: 'pending' | 'delivered' | 'failed' | 'retrying';
+  attempt_count: number;
+  error_message?: string | null;
+  care_circle_id?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type AnalyticsEventName =
+  | 'check_in_completed'
+  | 'check_in_missed'
+  | 'help_button_pressed'
+  | 'handoff_note_written'
+  | 'app_opened'
+  | 'screen_viewed';
+
+export interface AnalyticsEvent {
+  id: string;
+  event_name: AnalyticsEventName;
+  user_id?: string | null;
+  care_circle_id?: string | null;
+  properties: Record<string, string | number | boolean | null>;
+  created_at: string;
+}
+
+export interface QueuedCheckIn {
+  id: string;
+  circle_id: string;
+  user_id: string;
+  notes?: string;
+  queued_at: string;
+}
+

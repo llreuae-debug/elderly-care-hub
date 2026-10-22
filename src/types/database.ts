@@ -17,8 +17,17 @@ export interface CareCircle {
   created_by: string | null;
   check_in_deadline_time: string; // e.g. "10:00"
   primary_caregiver_phone?: string | null;
+  elder_pin_hash?: string | null;
+  elder_name: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface ElderSession {
+  circle_id: string;
+  circle_name: string;
+  elder_name: string;
+  invite_code: string;
 }
 
 export type MedicationStatus = 'taken' | 'skipped' | 'pending';

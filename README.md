@@ -1,53 +1,47 @@
-# Elderly Care Hub — Phase 1 & 2
+# Elderly Care Hub — Phase 1, 2 & 3
 
 An accessible, dignity-first coordination hub for families and caregivers of elders.
 
-Phase 1 established the core multi-caregiver coordination foundation: **magic-link authentication, care circle management via 6-character invite codes, and a shared reverse-chronological timeline feed with realtime updates.**
-
-Phase 2 introduces **medication reminders with interactive notifications, a daily check-in ("I'm OK") workflow, automated missed check-in escalation (caregiver push alerts + Twilio SMS fallback), and the "Today" schedule view.**
+- **Phase 1**: Caregiver magic-link authentication, care circle management via 6-character invite codes, and a shared reverse-chronological timeline feed with realtime updates.
+- **Phase 2**: Medication reminders with interactive notifications, daily check-in ("I'm OK") workflow, automated missed check-in escalation (caregiver push alerts + Twilio SMS fallback), and the "Today" schedule view.
+- **Phase 3**: Simplified Elder Mode (3 large high-contrast buttons, minimum 24pt font, zero clutter), 4-digit PIN authentication (stored securely as SHA-256 hash in Supabase, no email required), and server-side Caregiver permissions enforcement (Admin vs Viewer Row Level Security policies).
 
 ---
 
 ## 📱 Features Implemented
 
-### Phase 2 Additions
-1. **Medication Model & Schedules**:
-   - `medications` table: Name, dosage, schedule (`["08:00", "20:00"]`), assigned caregiver, instructions.
-   - `medication_logs` table: Daily dose tracking (`taken`, `skipped`, `pending`).
-   - Default Phase 2 Meds for Eleanor Vance:
-     - 💊 `Lisinopril 10mg` at 08:00 AM (Assigned: Sarah Vance)
-     - 💊 `Metoprolol Tartrate 25mg` at 08:00 AM & 08:00 PM (Assigned: Nurse Marcus)
-     - 💊 `Vitamin D3 & Calcium 1000 IU` at 12:00 PM (Assigned: Sarah Vance)
+### Phase 3 Additions
+1. **Simplified Elder Mode (Dignity & Accessibility First)**:
+   - Dedicated, uncluttered home screen designed specifically for elders with low tech literacy or visual impairments.
+   - **Font size: 24pt minimum** (32px) throughout the elder interface.
+   - **ONLY three large high-contrast touch buttons**:
+     - 🟩 **"I'm OK"** (Huge green button, min-height 120px): Tap once per day to log daily check-in.
+     - 🟥 **"Call for help"** (Huge red button, min-height 120px): Creates high-priority timeline event and immediately triggers push notifications + Twilio SMS to all circle admins.
+     - 🟦 **"My meds today"** (Huge blue button, min-height 120px): Opens a simplified read-only list showing today's medications with clear taken (✓) / pending (⏳) checkmarks.
+   - **Strict isolation**: Zero timeline feeds, zero settings, zero account management, zero navigation drawer clutter.
+   - Reversible "← Exit Elder Mode" footer option to return to caregiver login.
 
-2. **Medication Reminders & Interactive Notifications**:
-   - Powered by `expo-notifications` (Expo SDK 58 compatible).
-   - Configured interactive category `MEDICATION_REMINDER` with action buttons:
-     - `✓ Taken`: Updates log status to Taken and logs to the circle timeline.
-     - `✕ Skipped`: Updates log status to Skipped and logs note to the circle timeline.
-   - 2-Minute Quick Reminder button (`🔔 2m Reminder`) on every medication card for instant testing and device verification.
+2. **Elder 4-Digit PIN Authentication**:
+   - Elders log in using only a **4-digit PIN** and circle code (e.g. `CARE01` + PIN `1234`).
+   - **No email address or passwords required for the elder**.
+   - **Cryptographic Security**: Stored as a **SHA-256 hash** (`elder_pin_hash`) in Supabase Postgres, never in plaintext.
+   - Authenticated server-side via Supabase RPC function `verify_elder_pin(p_invite_code, p_pin_hash)`.
 
-3. **Daily Check-in Workflow (Elder Dignity First)**:
-   - High-contrast, large touch-target check-in card.
-   - Elder or caregiver on their behalf taps **"☀️ Tap: I'm OK"** once per day.
-   - Configurable circle deadline (default: **10:00 AM**, stored in `care_circles.check_in_deadline_time`).
-   - Instantly posts a confirmation event to the timeline: `☀️ Daily Check-in: Eleanor is OK`.
+3. **Server-Side Caregiver Permissions Enforcement (Row Level Security)**:
+   - Enforced at the **database layer (PostgreSQL RLS)**, not just client-side UI hiding:
+     - 👑 **Admin (e.g., Sarah Vance - Primary Caregiver)**:
+       - Can invite and remove circle members.
+       - Can add, edit, and delete medications.
+       - Can change circle settings (check-in deadline time, primary caregiver phone).
+     - 👁️ **Viewer (e.g., Dr. Marcus Brody - Home Nurse)**:
+       - Can view timeline events, medications list, and check-in status.
+       - **Strictly blocked** from creating/editing medications, modifying settings, or removing members. Direct API attempts receive a permission denied RLS error.
 
-4. **Missed Check-in Escalation**:
-   - **Stage 1 (Deadline passed, e.g. 10:00 AM)**:
-     - Push notification alert sent to all circle caregivers:
-       `"⚠️ Alert: Missed Daily Check-in: Eleanor Vance Care Circle has not checked in by 10:00. Please verify your loved one is safe."`
-     - Logs warning event to the timeline feed.
-   - **Stage 2 (30 minutes after deadline, e.g. 10:30 AM)**:
-     - Twilio SMS dispatched to primary caregiver phone (`care_circles.primary_caregiver_phone`):
-       `"URGENT [Elderly Care Hub]: Eleanor Vance Care Circle missed daily check-in (deadline 10:00). 30-min escalation window expired without confirmation. Please call or visit immediately."`
-     - Logs emergency escalation event to the timeline feed.
-   - **Supabase Edge Function**: [supabase/functions/check-in-escalation/index.ts](file:///Users/dilnawaz/Elderly%20Care%20Hub/supabase/functions/check-in-escalation/index.ts) executes the Twilio REST API request and updates check-in escalation state.
-
-5. **"Today" View Screen**:
-   - Prominent Daily Check-in card with status badge (`CONFIRMED`, `PENDING BY 10:00`, or `OVERDUE`).
-   - Summary of today's doses (e.g. `2 of 4 Taken`).
-   - Individual medication cards with quick Taken, Skip, and 2m Reminder triggers.
-   - Tab switcher between **☀️ Today** and **📜 Timeline**.
+4. **"Call for help" High-Priority Escalation**:
+   - Tapping "Call for help" in Elder Mode:
+     1. Creates a high-priority timeline event (`🚨 EMERGENCY: Eleanor called for help!`).
+     2. Dispatches an immediate high-priority push alert to all circle members.
+     3. Invokes the Supabase Edge Function to send an immediate Twilio SMS to all circle admins (`+15551234567`).
 
 ---
 
@@ -55,10 +49,11 @@ Phase 2 introduces **medication reminders with interactive notifications, a dail
 
 - **Frontend**: React Native with Expo SDK 58 (managed workflow) for iOS, Android, and Web.
 - **Backend**: Supabase (Postgres Database, Auth, Row Level Security, Realtime, Edge Functions).
+- **Cryptography**: `expo-crypto` for SHA-256 PIN hashing.
 - **Notifications**: `expo-notifications` for interactive local push alerts.
 - **SMS Fallback**: Twilio REST API via Supabase Edge Functions.
 - **Language**: TypeScript strict mode (`noImplicitAny`, strict null checks, zero `any`).
-- **Tests**: Jest integration test suite (20 tests covering Phase 1 and Phase 2).
+- **Tests**: Jest integration test suite (5 suites, 37 passing integration tests).
 
 ---
 
@@ -70,24 +65,15 @@ npm install
 ```
 
 ### 2. Setup Supabase Migrations
-Apply migrations in order using Supabase CLI or the SQL Editor in Supabase Dashboard:
-1. [supabase/migrations/20261023000001_initial_schema.sql](file:///Users/dilnawaz/Elderly%20Care%20Hub/supabase/migrations/20261023000001_initial_schema.sql) (Phase 1)
-2. [supabase/migrations/20261023000002_phase2_meds_and_checkins.sql](file:///Users/dilnawaz/Elderly%20Care%20Hub/supabase/migrations/20261023000002_phase2_meds_and_checkins.sql) (Phase 2)
-3. [supabase/seed.sql](file:///Users/dilnawaz/Elderly%20Care%20Hub/supabase/seed.sql)
+Apply migrations in order in the Supabase SQL Editor or CLI:
+1. `supabase/migrations/20261023000001_initial_schema.sql` (Phase 1)
+2. `supabase/migrations/20261023000002_phase2_meds_and_checkins.sql` (Phase 2)
+3. `supabase/migrations/20261023000003_phase3_elder_pin_and_permissions.sql` (Phase 3)
+4. `supabase/seed.sql`
 
-### 3. Deploy Supabase Edge Function (Twilio Missed Check-in Escalation)
-Deploy the Edge Function to your Supabase project:
-```bash
-npx supabase functions deploy check-in-escalation
-```
-Set secrets in Supabase Dashboard (or via CLI):
-```bash
-npx supabase secrets set \
-  TWILIO_ACCOUNT_SID=your-account-sid \
-  TWILIO_AUTH_TOKEN=your-auth-token \
-  TWILIO_PHONE_NUMBER=+1234567890 \
-  FALLBACK_CAREGIVER_PHONE=+15551234567
-```
+Seed Elder Credentials:
+- **Care Circle Code**: `CARE01`
+- **Elder PIN**: `1234` (Stored hash: `03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4`)
 
 ---
 
@@ -98,15 +84,15 @@ Run the full integration test suite:
 npm test
 ```
 
-20 tests verify:
-- Caregiver magic-link auth validation and persona loading.
-- Care circle creation, invite code generation, and member roles (`admin`/`viewer`).
-- Timeline feed reverse-chronological ordering, filtering, note creation, and realtime event propagation.
-- Medication models, dosages, multiple daily schedules, and caregiver assignment.
-- Scheduling local notifications 2 minutes out.
-- Marking medication Taken and Skipped with automatic timeline logging.
-- Daily check-in ("I'm OK") recording and timeline reflection.
-- Missed check-in escalation: Stage 1 push notification broadcast and Stage 2 Twilio SMS dispatch.
+**37 passing integration tests across 5 test suites**:
+- `auth.integration.test.ts`: Caregiver magic-link auth and persona handling.
+- `careCircle.integration.test.ts`: Care circle creation, invite codes, and memberships.
+- `timeline.integration.test.ts`: Reverse-chronological feed, filtering, notes, and realtime events.
+- `medicationAndCheckin.integration.test.ts`: Medication schedules, 2m reminders, daily check-in, push and SMS escalation.
+- `elderModeAndPermissions.integration.test.ts`:
+  - 4-digit PIN SHA-256 hashing and login validation.
+  - Elder Mode 3 buttons ("I'm OK", "Call for help", "My meds today").
+  - Server-side RLS permission checks: Admin permitted to mutate meds/settings/members; Viewer denied on all mutations.
 
 Run strict TypeScript typecheck:
 ```bash
@@ -123,34 +109,38 @@ npm run web
 ```
 Opens at `http://localhost:8081`.
 
-### Physical Device (Recommended for Push Notifications)
-Because iOS and Android simulators do not support native background APNs/FCM local trigger behavior reliably, run on a physical device:
+### iOS / Android Device (via Expo Go)
 ```bash
 npm start
 ```
-Scan the QR code with your iPhone Camera (iOS) or the **Expo Go** app (Android).
-
-### iOS Simulator
-```bash
-npm run ios
-```
+Scan the QR code with your iPhone Camera or Android Expo Go app.
 
 ---
 
-## 🔬 How to Verify Phase 2 Deliverables
+## 🔬 How to Verify Phase 3 Deliverables
 
-1. **Test Medication Reminder (2 minutes out)**:
-   - Log in as Sarah or Marcus.
-   - On the **Today** tab, locate any medication (e.g. *Lisinopril 10mg*).
-   - Tap **"🔔 2m Reminder"**.
-   - A notification is scheduled for 120 seconds out with interactive "✓ Taken" and "✕ Skipped" action buttons.
-2. **Test Daily Check-in**:
-   - In the **Daily Check-in** card, tap **"☀️ Tap: I'm OK"**.
-   - Notice the card updates to `"✓ Eleanor is OK Today"`.
-   - Tap the **"📜 Timeline"** tab to see `☀️ Daily Check-in: Eleanor is OK` logged with the current timestamp.
-3. **Test Missed Check-in Escalation (Push then SMS)**:
-   - In the **Daily Check-in** card, tap **"🔔 Test Escalation: Trigger Missed Alert (Push + Twilio SMS)"**.
-   - An alert confirms:
-     1. Stage 1: Push notification dispatched to all circle caregivers.
-     2. Stage 2: Twilio SMS alert sent to the primary caregiver (`+15551234567`).
-   - Switch to **"📜 Timeline"** to verify that `🚨 Emergency Escalation: SMS Dispatched to Primary Caregiver` is recorded.
+### 1. Test Elder Mode & 4-Digit PIN Auth
+1. Launch the app (`http://localhost:8081`).
+2. On the login screen, click **"👵 Switch to Elder Mode (4-Digit PIN)"**.
+3. Use the large keypad to enter PIN **`1234`** and click **"👵 Log In to Elder Mode"**.
+4. **Confirm Elder Mode Screen**:
+   - Exactly **three large buttons** appear:
+     - 🟩 **"I'm OK"**
+     - 🟥 **"Call for help"**
+     - 🟦 **"My meds today"**
+   - Font size is 24pt minimum (32px).
+   - No timeline, no settings, no account management.
+5. Tap **"I'm OK"** → verifies check-in is recorded.
+6. Tap **"My meds today"** → displays read-only list with doses and taken checkmarks.
+7. Tap **"🚨 Call for help"** → triggers emergency confirmation banner simulating immediate Push + Twilio SMS to admins.
+
+### 2. Verify Caregiver Permissions Enforcement (Admin vs Viewer)
+1. Tap **"← Exit Elder Mode"** to return to caregiver mode.
+2. Click **"Dr. Marcus Brody (Viewer)"** quick demo login.
+3. Observe that Dr. Marcus is in Read-Only Viewer mode:
+   - Can read timeline and check-in status.
+   - Medication editing and circle settings modifications are disabled in UI and rejected server-side by Supabase RLS.
+4. Run `npm test` to verify the automated RLS policy test suite:
+   ```bash
+   npm test __tests__/elderModeAndPermissions.integration.test.ts
+   ```

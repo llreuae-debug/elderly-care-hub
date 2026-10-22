@@ -23,5 +23,6 @@ module.exports = {
     '^react-native-url-polyfill/auto$': '<rootDir>/__mocks__/empty.js',
     '^react-native-safe-area-context$': '<rootDir>/__mocks__/empty.js',
     '^expo-notifications$': '<rootDir>/__mocks__/expo-notifications.js',
+    '^expo-crypto$': '<rootDir>/__mocks__/expo-crypto.js',
   },
 };

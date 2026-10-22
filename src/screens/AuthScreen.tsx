@@ -16,9 +16,13 @@ import { UserProfile } from '../types/database';
 
 interface AuthScreenProps {
   onAuthenticated: (user: UserProfile) => void;
+  onSwitchToElderMode?: () => void;
 }
 
-export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
+export const AuthScreen: React.FC<AuthScreenProps> = ({
+  onAuthenticated,
+  onSwitchToElderMode,
+}) => {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [feedback, setFeedback] = useState<{ message: string; isError: boolean } | null>(null);
@@ -141,6 +145,15 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
             onPress={() => handleSelectSeedUser('22222222-2222-2222-2222-222222222222')}
             style={styles.demoButton}
           />
+
+          {onSwitchToElderMode ? (
+            <Button
+              title="👵 Switch to Elder Mode (4-Digit PIN)"
+              variant="outline"
+              onPress={onSwitchToElderMode}
+              style={styles.elderSwitchBtn}
+            />
+          ) : null}
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -265,5 +278,10 @@ const styles = StyleSheet.create({
   },
   demoButton: {
     marginBottom: 10,
+  },
+  elderSwitchBtn: {
+    marginTop: 8,
+    borderWidth: 2,
+    borderColor: '#0E7490',
   },
 });

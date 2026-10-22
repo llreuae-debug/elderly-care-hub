@@ -32,6 +32,8 @@ export const SEED_CARE_CIRCLE: CareCircle = {
   created_by: '11111111-1111-1111-1111-111111111111',
   check_in_deadline_time: '10:00',
   primary_caregiver_phone: '+15551234567',
+  elder_name: 'Eleanor',
+  elder_pin_hash: '03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4', // PIN: 1234
   created_at: new Date(Date.now() - 7 * 86400000).toISOString(),
   updated_at: new Date(Date.now() - 7 * 86400000).toISOString(),
 };

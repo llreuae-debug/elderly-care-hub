@@ -5,12 +5,16 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { isSupabaseConfigured, supabase } from './src/lib/supabase';
 import { AuthScreen } from './src/screens/AuthScreen';
 import { CircleSelectScreen } from './src/screens/CircleSelectScreen';
+import { ElderHomeScreen } from './src/screens/ElderHomeScreen';
+import { ElderLoginScreen } from './src/screens/ElderLoginScreen';
 import { TimelineScreen } from './src/screens/TimelineScreen';
 import { TodayScreen } from './src/screens/TodayScreen';
-import { SEED_CARE_CIRCLE, SEED_PROFILES } from './src/services/mockData';
-import { CareCircle, UserProfile } from './src/types/database';
+import { SEED_CARE_CIRCLE } from './src/services/mockData';
+import { CareCircle, ElderSession, UserProfile } from './src/types/database';
 
 export default function App() {
+  const [appMode, setAppMode] = useState<'caregiver' | 'elder'>('caregiver');
+  const [elderSession, setElderSession] = useState<ElderSession | null>(null);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [activeCircle, setActiveCircle] = useState<CareCircle | null>(null);
   const [activeTab, setActiveTab] = useState<'today' | 'timeline'>('today');
@@ -87,8 +91,26 @@ export default function App() {
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom', 'left', 'right']}>
         <StatusBar style="dark" />
         <View style={styles.container}>
-          {!currentUser ? (
-            <AuthScreen onAuthenticated={handleAuthenticated} />
+          {appMode === 'elder' ? (
+            !elderSession ? (
+              <ElderLoginScreen
+                onElderAuthenticated={(session) => setElderSession(session)}
+                onSwitchToCaregiverLogin={() => setAppMode('caregiver')}
+              />
+            ) : (
+              <ElderHomeScreen
+                session={elderSession}
+                onExitElderMode={() => {
+                  setElderSession(null);
+                  setAppMode('caregiver');
+                }}
+              />
+            )
+          ) : !currentUser ? (
+            <AuthScreen
+              onAuthenticated={handleAuthenticated}
+              onSwitchToElderMode={() => setAppMode('elder')}
+            />
           ) : !activeCircle ? (
             <CircleSelectScreen
               currentUser={currentUser}

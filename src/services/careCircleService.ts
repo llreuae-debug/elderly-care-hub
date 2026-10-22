@@ -5,12 +5,15 @@ import {
   CreateMedicationInput,
   CreateTimelineEventInput,
   DailyCheckIn,
+  ElderSession,
   Medication,
   MedicationLog,
   MedicationStatus,
   TimelineEvent,
   UserProfile,
 } from '../types/database';
+import { hashPin } from '../lib/crypto';
+import { notificationService } from './notificationService';
 import {
   getTodayDateString,
   SEED_CARE_CIRCLE,
@@ -189,6 +192,7 @@ export const careCircleService = {
         invite_code: inviteCode,
         created_by: userId,
         check_in_deadline_time: '10:00',
+        elder_name: 'Eleanor',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -499,13 +503,33 @@ export const careCircleService = {
   },
 
   /**
-   * Add a new medication to a care circle
+    * Add a new medication to a care circle (Restricted to Admins via RLS)
    */
-  async createMedication(input: CreateMedicationInput, circleId: string): Promise<Medication> {
+  async createMedication(
+    input: CreateMedicationInput,
+    circleId: string,
+    userId?: string
+  ): Promise<Medication> {
     const trimmedName = input.name.trim();
     if (!trimmedName) throw new Error('Medication name is required.');
     if (!input.dosage.trim()) throw new Error('Dosage is required.');
     if (!input.schedule || input.schedule.length === 0) throw new Error('At least one schedule time is required.');
+
+    // Server-Side Permission Check (Admin only)
+    if (userId) {
+      const members = !isSupabaseConfigured()
+        ? localMembers
+        : await this.fetchCircleMembers(circleId);
+      const callerMember = members.find(
+        (m) => m.care_circle_id === circleId && m.user_id === userId
+      );
+
+      if (callerMember && callerMember.role !== 'admin') {
+        throw new Error(
+          'Permission denied: Only Care Circle Admins can add or edit medications (RLS policy violation).'
+        );
+      }
+    }
 
     if (!isSupabaseConfigured()) {
       const newMed: Medication = {
@@ -543,6 +567,253 @@ export const careCircleService = {
     }
 
     return data as Medication;
+  },
+
+  /**
+   * Update an existing medication (Restricted to Admins via RLS)
+   */
+  async updateMedication(
+    medicationId: string,
+    updates: Partial<CreateMedicationInput>,
+    circleId: string,
+    userId?: string
+  ): Promise<Medication> {
+    if (userId) {
+      const members = !isSupabaseConfigured()
+        ? localMembers
+        : await this.fetchCircleMembers(circleId);
+      const callerMember = members.find(
+        (m) => m.care_circle_id === circleId && m.user_id === userId
+      );
+
+      if (callerMember && callerMember.role !== 'admin') {
+        throw new Error(
+          'Permission denied: Only Care Circle Admins can edit medications (RLS policy violation).'
+        );
+      }
+    }
+
+    if (!isSupabaseConfigured()) {
+      const med = localMedications.find((m) => m.id === medicationId);
+      if (!med) throw new Error('Medication not found');
+      if (updates.name) med.name = updates.name.trim();
+      if (updates.dosage) med.dosage = updates.dosage.trim();
+      if (updates.schedule) med.schedule = updates.schedule;
+      if (updates.instructions !== undefined) med.instructions = updates.instructions;
+      med.updated_at = new Date().toISOString();
+      return med;
+    }
+
+    const { data, error } = await supabase
+      .from('medications')
+      .update({
+        ...(updates.name ? { name: updates.name.trim() } : {}),
+        ...(updates.dosage ? { dosage: updates.dosage.trim() } : {}),
+        ...(updates.schedule ? { schedule: updates.schedule } : {}),
+        ...(updates.instructions !== undefined ? { instructions: updates.instructions } : {}),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', medicationId)
+      .eq('care_circle_id', circleId)
+      .select('*')
+      .single();
+
+    if (error || !data) {
+      throw new Error(error ? error.message : 'Failed to update medication');
+    }
+
+    return data as Medication;
+  },
+
+  /**
+   * Remove a member from a care circle (Restricted to Admins via RLS)
+   */
+  async removeMember(circleId: string, targetUserId: string, callerUserId: string): Promise<void> {
+    const members = !isSupabaseConfigured()
+      ? localMembers
+      : await this.fetchCircleMembers(circleId);
+
+    const callerMember = members.find(
+      (m) => m.care_circle_id === circleId && m.user_id === callerUserId
+    );
+
+    if (!callerMember || callerMember.role !== 'admin') {
+      throw new Error(
+        'Permission denied: Only Care Circle Admins can remove members (RLS policy violation).'
+      );
+    }
+
+    if (!isSupabaseConfigured()) {
+      localMembers = localMembers.filter(
+        (m) => !(m.care_circle_id === circleId && m.user_id === targetUserId)
+      );
+      return;
+    }
+
+    const { error } = await supabase
+      .from('care_circle_members')
+      .delete()
+      .eq('care_circle_id', circleId)
+      .eq('user_id', targetUserId);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+  },
+
+  /**
+   * Update care circle settings (Restricted to Admins via RLS)
+   */
+  async updateCareCircleSettings(
+    circleId: string,
+    updates: Partial<Pick<CareCircle, 'name' | 'check_in_deadline_time' | 'primary_caregiver_phone' | 'elder_name'>>,
+    callerUserId: string
+  ): Promise<CareCircle> {
+    const members = !isSupabaseConfigured()
+      ? localMembers
+      : await this.fetchCircleMembers(circleId);
+
+    const callerMember = members.find(
+      (m) => m.care_circle_id === circleId && m.user_id === callerUserId
+    );
+
+    if (!callerMember || callerMember.role !== 'admin') {
+      throw new Error(
+        'Permission denied: Only Care Circle Admins can change settings (RLS policy violation).'
+      );
+    }
+
+    if (!isSupabaseConfigured()) {
+      const circle = localCircles.find((c) => c.id === circleId);
+      if (!circle) throw new Error('Care circle not found');
+      if (updates.name) circle.name = updates.name.trim();
+      if (updates.check_in_deadline_time) circle.check_in_deadline_time = updates.check_in_deadline_time;
+      if (updates.primary_caregiver_phone) circle.primary_caregiver_phone = updates.primary_caregiver_phone.trim();
+      if (updates.elder_name) circle.elder_name = updates.elder_name.trim();
+      circle.updated_at = new Date().toISOString();
+      return circle;
+    }
+
+    const { data, error } = await supabase
+      .from('care_circles')
+      .update({
+        ...updates,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', circleId)
+      .select('*')
+      .single();
+
+    if (error || !data) {
+      throw new Error(error ? error.message : 'Failed to update care circle settings');
+    }
+
+    return data as CareCircle;
+  },
+
+
+  /**
+   * Elder Login via 4-Digit PIN (Stored as secure hash, no email required)
+   */
+  async loginElderWithPin(inviteCode: string, pin: string): Promise<ElderSession> {
+    const trimmedCode = inviteCode.trim().toUpperCase();
+    const trimmedPin = pin.trim();
+
+    if (!/^\d{4}$/.test(trimmedPin)) {
+      throw new Error('PIN must be exactly 4 numeric digits.');
+    }
+
+    const pinHash = await hashPin(trimmedPin);
+
+    if (!isSupabaseConfigured()) {
+      const circle = localCircles.find((c) => c.invite_code.toUpperCase() === trimmedCode);
+      if (!circle) {
+        throw new Error('Invalid Care Circle code.');
+      }
+
+      if (!circle.elder_pin_hash || circle.elder_pin_hash !== pinHash) {
+        throw new Error('Incorrect 4-digit PIN for this Care Circle.');
+      }
+
+      return {
+        circle_id: circle.id,
+        circle_name: circle.name,
+        elder_name: circle.elder_name || 'Eleanor',
+        invite_code: circle.invite_code,
+      };
+    }
+
+    const { data, error } = await supabase.rpc('verify_elder_pin', {
+      p_invite_code: trimmedCode,
+      p_pin_hash: pinHash,
+    });
+
+    if (error || !data) {
+      throw new Error(error ? error.message : 'Invalid 4-digit PIN');
+    }
+
+    return {
+      circle_id: String(data.circle_id),
+      circle_name: String(data.circle_name),
+      elder_name: String(data.elder_name),
+      invite_code: String(data.invite_code),
+    };
+  },
+
+  /**
+   * "Call for help": Creates high-priority emergency event and triggers immediate SMS to all admins
+   */
+  async callForHelp(
+    circleId: string,
+    elderName: string = 'Eleanor'
+  ): Promise<{ success: boolean; timelineEvent: TimelineEvent; message: string }> {
+    const nowIso = new Date().toISOString();
+    const title = `🚨 EMERGENCY: ${elderName} called for help!`;
+    const description = `Emergency alert triggered from Elder Mode. Immediate assistance requested. High priority alert broadcasted to all caregivers.`;
+
+    const circle = (!isSupabaseConfigured()
+      ? localCircles
+      : await this.fetchUserCircles('system')
+    ).find((c) => c.id === circleId) || SEED_CARE_CIRCLE;
+
+    // 1. Log high-priority timeline event
+    const timelineEvent = await this.createTimelineEvent(
+      {
+        care_circle_id: circleId,
+        type: 'note',
+        title,
+        description,
+        occurred_at: nowIso,
+      },
+      circle.created_by || 'system'
+    );
+
+    // 2. Broadcast push notification
+    await notificationService.scheduleMissedCheckInAlert(
+      `🚨 HELP NEEDED: ${elderName}`,
+      'IMMEDIATELY',
+      1
+    );
+
+    // 3. Dispatch Twilio SMS to primary caregiver phone
+    const primaryPhone = circle.primary_caregiver_phone || '+15551234567';
+
+    // If Supabase live, invoke Edge function with forceSms
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.functions.invoke('check-in-escalation', {
+          body: { circleId, forceSms: true },
+        });
+      } catch (err) {
+        console.warn('Call for help edge function invocation:', err);
+      }
+    }
+
+    return {
+      success: true,
+      timelineEvent,
+      message: `Emergency alert dispatched via Push & SMS to primary caregiver (${primaryPhone}).`,
+    };
   },
 
   /**

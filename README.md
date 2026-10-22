@@ -1,94 +1,93 @@
-# Elderly Care Hub — Phase 1
+# Elderly Care Hub — Phase 1 & 2
 
 An accessible, dignity-first coordination hub for families and caregivers of elders.
 
-Phase 1 delivers the foundational workflow: **caregivers can log in with a magic link, create or join a Care Circle with an invite code, view a shared reverse-chronological timeline feed with pull-to-refresh & realtime updates, and add care updates (notes, medications, appointments).**
+Phase 1 established the core multi-caregiver coordination foundation: **magic-link authentication, care circle management via 6-character invite codes, and a shared reverse-chronological timeline feed with realtime updates.**
+
+Phase 2 introduces **medication reminders with interactive notifications, a daily check-in ("I'm OK") workflow, automated missed check-in escalation (caregiver push alerts + Twilio SMS fallback), and the "Today" schedule view.**
 
 ---
 
-## 📱 Features Implemented (Phase 1)
+## 📱 Features Implemented
 
-1. **Authentication**:
-   - Magic link email for caregivers (`supabase.auth.signInWithOtp`).
-   - No passwords required (low tech literacy principle).
-   - Quick testing personas for seed caregivers (Sarah & Dr. Marcus).
-   - *Note: Elders will use a 4-digit PIN in Phase 3; elder auth is explicitly deferred per project rules.*
+### Phase 2 Additions
+1. **Medication Model & Schedules**:
+   - `medications` table: Name, dosage, schedule (`["08:00", "20:00"]`), assigned caregiver, instructions.
+   - `medication_logs` table: Daily dose tracking (`taken`, `skipped`, `pending`).
+   - Default Phase 2 Meds for Eleanor Vance:
+     - 💊 `Lisinopril 10mg` at 08:00 AM (Assigned: Sarah Vance)
+     - 💊 `Metoprolol Tartrate 25mg` at 08:00 AM & 08:00 PM (Assigned: Nurse Marcus)
+     - 💊 `Vitamin D3 & Calcium 1000 IU` at 12:00 PM (Assigned: Sarah Vance)
 
-2. **Care Circle Management**:
-   - Create a new Care Circle with automatic unique 6-character invite code (e.g. `CARE01`).
-   - Assigns circle creator as `admin`.
-   - Join existing circles using the invite code (assigns joining caregiver as `viewer`).
-   - Tap-to-share invite code with fellow family members and nurses.
+2. **Medication Reminders & Interactive Notifications**:
+   - Powered by `expo-notifications` (Expo SDK 58 compatible).
+   - Configured interactive category `MEDICATION_REMINDER` with action buttons:
+     - `✓ Taken`: Updates log status to Taken and logs to the circle timeline.
+     - `✕ Skipped`: Updates log status to Skipped and logs note to the circle timeline.
+   - 2-Minute Quick Reminder button (`🔔 2m Reminder`) on every medication card for instant testing and device verification.
 
-3. **Shared Timeline Feed**:
-   - Reverse-chronological timeline feed (newest first).
-   - Event categorization with distinct high-contrast badges:
-     - 📝 **Care Note** (meals, walk, rest, mood)
-     - 💊 **Medication** (dose given, vitals, reactions)
-     - 🩺 **Appointment** (clinic visits, hospital checkups)
-   - Author attribution & relative timestamping ("Just now", "45m ago", "Yesterday").
-   - Filter bar with item counts (`All Updates`, `Care Notes`, `Medications`, `Appointments`).
-   - Pull-to-refresh (`RefreshControl`).
-   - Realtime subscription banner and live updates via Supabase Realtime channel.
+3. **Daily Check-in Workflow (Elder Dignity First)**:
+   - High-contrast, large touch-target check-in card.
+   - Elder or caregiver on their behalf taps **"☀️ Tap: I'm OK"** once per day.
+   - Configurable circle deadline (default: **10:00 AM**, stored in `care_circles.check_in_deadline_time`).
+   - Instantly posts a confirmation event to the timeline: `☀️ Daily Check-in: Eleanor is OK`.
 
-4. **Add Note / Care Update**:
-   - Accessible modal with 48px+ touch targets.
-   - Type selector: Care Note, Medication, Appointment.
-   - Title, notes/details, and timestamp.
-   - Immediate insertion to timeline with realtime broadcast.
+4. **Missed Check-in Escalation**:
+   - **Stage 1 (Deadline passed, e.g. 10:00 AM)**:
+     - Push notification alert sent to all circle caregivers:
+       `"⚠️ Alert: Missed Daily Check-in: Eleanor Vance Care Circle has not checked in by 10:00. Please verify your loved one is safe."`
+     - Logs warning event to the timeline feed.
+   - **Stage 2 (30 minutes after deadline, e.g. 10:30 AM)**:
+     - Twilio SMS dispatched to primary caregiver phone (`care_circles.primary_caregiver_phone`):
+       `"URGENT [Elderly Care Hub]: Eleanor Vance Care Circle missed daily check-in (deadline 10:00). 30-min escalation window expired without confirmation. Please call or visit immediately."`
+     - Logs emergency escalation event to the timeline feed.
+   - **Supabase Edge Function**: [supabase/functions/check-in-escalation/index.ts](file:///Users/dilnawaz/Elderly%20Care%20Hub/supabase/functions/check-in-escalation/index.ts) executes the Twilio REST API request and updates check-in escalation state.
 
-5. **Seed Data**:
-   - 1 Care Circle: `Eleanor Vance Care Circle` (code: `CARE01`).
-   - 2 Members:
-     - **Sarah Vance (Daughter)** — Role: `admin`
-     - **Dr. Marcus Chen (Home Nurse)** — Role: `viewer`
-   - 3 Timeline Events:
-     - 🩺 `Cardiologist Follow-up Scheduled` (Appointment)
-     - 💊 `Morning Blood Pressure & Beta Blocker Administered` (Medication)
-     - 📝 `Afternoon Walk & Tea in the Garden` (Care Note)
+5. **"Today" View Screen**:
+   - Prominent Daily Check-in card with status badge (`CONFIRMED`, `PENDING BY 10:00`, or `OVERDUE`).
+   - Summary of today's doses (e.g. `2 of 4 Taken`).
+   - Individual medication cards with quick Taken, Skip, and 2m Reminder triggers.
+   - Tab switcher between **☀️ Today** and **📜 Timeline**.
 
 ---
 
 ## 🛠️ Tech Stack & Constraints
 
 - **Frontend**: React Native with Expo SDK 58 (managed workflow) for iOS, Android, and Web.
-- **Backend**: Supabase (Postgres Database, Auth, Row Level Security, Realtime).
-- **Language**: TypeScript strict mode (`noImplicitAny`, strict null checks, no `any`).
-- **Tests**: Jest integration test suite covering all Phase 1 requirements.
+- **Backend**: Supabase (Postgres Database, Auth, Row Level Security, Realtime, Edge Functions).
+- **Notifications**: `expo-notifications` for interactive local push alerts.
+- **SMS Fallback**: Twilio REST API via Supabase Edge Functions.
+- **Language**: TypeScript strict mode (`noImplicitAny`, strict null checks, zero `any`).
+- **Tests**: Jest integration test suite (20 tests covering Phase 1 and Phase 2).
 
 ---
 
 ## 🚀 Getting Started
 
-### 1. Prerequisites
-- Node.js (v18+)
-- npm or yarn
-- For iOS Simulator: macOS with Xcode installed (`xcode-select --install`)
-- For Mobile Device testing: Expo Go app installed on your iPhone or Android phone
-
-### 2. Install Dependencies
+### 1. Install Dependencies
 ```bash
 npm install
 ```
 
-### 3. Setup Supabase (Backend)
+### 2. Setup Supabase Migrations
+Apply migrations in order using Supabase CLI or the SQL Editor in Supabase Dashboard:
+1. [supabase/migrations/20261023000001_initial_schema.sql](file:///Users/dilnawaz/Elderly%20Care%20Hub/supabase/migrations/20261023000001_initial_schema.sql) (Phase 1)
+2. [supabase/migrations/20261023000002_phase2_meds_and_checkins.sql](file:///Users/dilnawaz/Elderly%20Care%20Hub/supabase/migrations/20261023000002_phase2_meds_and_checkins.sql) (Phase 2)
+3. [supabase/seed.sql](file:///Users/dilnawaz/Elderly%20Care%20Hub/supabase/seed.sql)
 
-#### Option A: Quick Test & Instant Verification (Zero Setup)
-The app includes seamless offline/demo data matching the seed requirements. You can immediately launch the app without creating a Supabase account.
-
-#### Option B: Connecting to Live Supabase Project
-1. Create a project at [supabase.com](https://supabase.com).
-2. Copy `.env.example` to `.env`:
-   ```bash
-   cp .env.example .env
-   ```
-3. Update `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` with your project credentials.
-4. Apply the database migrations:
-   - Navigate to the Supabase Dashboard **SQL Editor**.
-   - Copy and execute [supabase/migrations/20261023000001_initial_schema.sql](file:///Users/dilnawaz/Elderly%20Care%20Hub/supabase/migrations/20261023000001_initial_schema.sql).
-5. Seed the database:
-   - Copy and execute [supabase/seed.sql](file:///Users/dilnawaz/Elderly%20Care%20Hub/supabase/seed.sql) in the SQL Editor.
-   - Alternatively, run `npm run seed` with `SUPABASE_SERVICE_ROLE_KEY` set.
+### 3. Deploy Supabase Edge Function (Twilio Missed Check-in Escalation)
+Deploy the Edge Function to your Supabase project:
+```bash
+npx supabase functions deploy check-in-escalation
+```
+Set secrets in Supabase Dashboard (or via CLI):
+```bash
+npx supabase secrets set \
+  TWILIO_ACCOUNT_SID=your-account-sid \
+  TWILIO_AUTH_TOKEN=your-auth-token \
+  TWILIO_PHONE_NUMBER=+1234567890 \
+  FALLBACK_CAREGIVER_PHONE=+15551234567
+```
 
 ---
 
@@ -99,12 +98,17 @@ Run the full integration test suite:
 npm test
 ```
 
-Tests cover:
+20 tests verify:
 - Caregiver magic-link auth validation and persona loading.
-- Care circle creation, unique invite code generation, and joining with `admin`/`viewer` roles.
+- Care circle creation, invite code generation, and member roles (`admin`/`viewer`).
 - Timeline feed reverse-chronological ordering, filtering, note creation, and realtime event propagation.
+- Medication models, dosages, multiple daily schedules, and caregiver assignment.
+- Scheduling local notifications 2 minutes out.
+- Marking medication Taken and Skipped with automatic timeline logging.
+- Daily check-in ("I'm OK") recording and timeline reflection.
+- Missed check-in escalation: Stage 1 push notification broadcast and Stage 2 Twilio SMS dispatch.
 
-Type check in strict mode:
+Run strict TypeScript typecheck:
 ```bash
 npx tsc --noEmit
 ```
@@ -113,67 +117,40 @@ npx tsc --noEmit
 
 ## 📱 Running the App
 
-### iOS Simulator
-```bash
-npm run ios
-```
-*Note: Make sure an iOS Simulator is booted or available in Xcode.*
-
 ### Web Preview (Immediate Browser Testing)
 ```bash
 npm run web
 ```
-Opens in your browser at `http://localhost:8081`.
+Opens at `http://localhost:8081`.
 
-### Android Emulator / Device
-```bash
-npm run android
-```
-
-### Physical Phone (iOS / Android via Expo Go)
+### Physical Device (Recommended for Push Notifications)
+Because iOS and Android simulators do not support native background APNs/FCM local trigger behavior reliably, run on a physical device:
 ```bash
 npm start
 ```
-Scan the QR code in your terminal with the camera (iOS) or Expo Go app (Android).
+Scan the QR code with your iPhone Camera (iOS) or the **Expo Go** app (Android).
+
+### iOS Simulator
+```bash
+npm run ios
+```
 
 ---
 
-## 📂 Project Structure
+## 🔬 How to Verify Phase 2 Deliverables
 
-```
-.
-├── .agents/
-│   └── rules.md                  # Project rules & constraints
-├── __tests__/                    # Integration test suites
-│   ├── auth.integration.test.ts
-│   ├── careCircle.integration.test.ts
-│   └── timeline.integration.test.ts
-├── App.tsx                       # Root app router & auth listener
-├── app.json                      # Expo configuration
-├── package.json
-├── PROJECT_RULES.md              # Core product & engineering principles
-├── scripts/
-│   └── seed.ts                   # Automated seed verification script
-├── src/
-│   ├── components/
-│   │   ├── Button.tsx            # Large touch target buttons
-│   │   ├── FilterBar.tsx         # Event filter chips
-│   │   ├── Input.tsx             # Accessible form input
-│   │   └── TimelineCard.tsx      # Dignified timeline card with badge & metadata
-│   ├── lib/
-│   │   └── supabase.ts           # Supabase client with auth persistence
-│   ├── screens/
-│   │   ├── AddNoteScreen.tsx     # Add care update modal
-│   │   ├── AuthScreen.tsx        # Magic link login & persona switchers
-│   │   ├── CircleSelectScreen.tsx# Select, create, or join care circle
-│   │   └── TimelineScreen.tsx    # Live shared timeline feed
-│   ├── services/
-│   │   ├── careCircleService.ts  # Supabase RPC, queries, and realtime sync
-│   │   └── mockData.ts           # Phase 1 seed data fixtures
-│   └── types/
-│       └── database.ts           # Strict TypeScript models
-└── supabase/
-    ├── migrations/
-    │   └── 20261023000001_initial_schema.sql # RLS policies, tables, functions
-    └── seed.sql                  # Seed data (1 circle, 2 members, 3 events)
-```
+1. **Test Medication Reminder (2 minutes out)**:
+   - Log in as Sarah or Marcus.
+   - On the **Today** tab, locate any medication (e.g. *Lisinopril 10mg*).
+   - Tap **"🔔 2m Reminder"**.
+   - A notification is scheduled for 120 seconds out with interactive "✓ Taken" and "✕ Skipped" action buttons.
+2. **Test Daily Check-in**:
+   - In the **Daily Check-in** card, tap **"☀️ Tap: I'm OK"**.
+   - Notice the card updates to `"✓ Eleanor is OK Today"`.
+   - Tap the **"📜 Timeline"** tab to see `☀️ Daily Check-in: Eleanor is OK` logged with the current timestamp.
+3. **Test Missed Check-in Escalation (Push then SMS)**:
+   - In the **Daily Check-in** card, tap **"🔔 Test Escalation: Trigger Missed Alert (Push + Twilio SMS)"**.
+   - An alert confirms:
+     1. Stage 1: Push notification dispatched to all circle caregivers.
+     2. Stage 2: Twilio SMS alert sent to the primary caregiver (`+15551234567`).
+   - Switch to **"📜 Timeline"** to verify that `🚨 Emergency Escalation: SMS Dispatched to Primary Caregiver` is recorded.

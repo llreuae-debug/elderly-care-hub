@@ -367,6 +367,21 @@ export const billingAnalyticsService = {
       null,
       circleId
     );
+
+    if (isSupabaseConfigured()) {
+      try {
+        await supabase.from('twilio_usage').insert({
+          care_circle_id: circleId,
+          cost_estimate_usd: costUsd,
+          status: 'sent',
+          escalation_stage: escalationStage,
+        });
+      } catch (err) {
+        if (typeof __DEV__ !== 'undefined' && __DEV__) {
+          console.log('[Analytics DEV] twilio_usage insert:', err);
+        }
+      }
+    }
   },
 
   /**
@@ -447,18 +462,24 @@ export const billingAnalyticsService = {
     let allEvents: AnalyticsEvent[] = analyticsService.getTrackedEvents();
     let subscriptions: SubscriptionRecord[] = [...inMemorySubscriptions];
 
+    let twilioUsageRows: any[] = [];
+
     // If Supabase live, attempt to pull latest records
     if (isSupabaseConfigured()) {
       try {
-        const [eventsRes, subsRes] = await Promise.all([
+        const [eventsRes, subsRes, twilioRes] = await Promise.all([
           supabase.from('analytics_events').select('*'),
           supabase.from('subscriptions').select('*'),
+          supabase.from('twilio_usage').select('*'),
         ]);
         if (eventsRes.data && eventsRes.data.length > 0) {
           allEvents = eventsRes.data as AnalyticsEvent[];
         }
         if (subsRes.data && subsRes.data.length > 0) {
           subscriptions = subsRes.data as SubscriptionRecord[];
+        }
+        if (twilioRes.data && twilioRes.data.length > 0) {
+          twilioUsageRows = twilioRes.data;
         }
       } catch (err) {
         console.warn('Error fetching analytics from Supabase, using local telemetry:', err);
@@ -518,13 +539,25 @@ export const billingAnalyticsService = {
 
     // 4. Metric 4: SMS Cost Per User Per Month (Twilio spend / active Family users)
     const smsEvents = allEvents.filter((e) => e.event_name === 'sms_dispatched');
-    const totalTwilioSpendUsd =
-      Math.round(
-        smsEvents.reduce((acc, curr) => {
-          const cost = Number(curr.properties.cost_usd || 0.0079);
-          return acc + cost;
-        }, 0) * 1000
-      ) / 1000;
+    let totalTwilioSpendUsd = 0;
+
+    if (twilioUsageRows.length > 0) {
+      totalTwilioSpendUsd =
+        Math.round(
+          twilioUsageRows.reduce((acc, row) => {
+            const cost = Number(row.cost_estimate_usd || 0.0079);
+            return acc + cost;
+          }, 0) * 1000
+        ) / 1000;
+    } else {
+      totalTwilioSpendUsd =
+        Math.round(
+          smsEvents.reduce((acc, curr) => {
+            const cost = Number(curr.properties.cost_usd || 0.0079);
+            return acc + cost;
+          }, 0) * 1000
+        ) / 1000;
+    }
 
     const costPerUserUsd =
       Math.round((totalTwilioSpendUsd / payingUsersCount) * 1000) / 1000;

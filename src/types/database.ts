@@ -205,8 +205,21 @@ export interface AnalyticsEvent {
   id: string;
   event_name: AnalyticsEventName;
   user_id?: string | null;
+  circle_id?: string | null;
   care_circle_id?: string | null;
   properties: Record<string, string | number | boolean | null>;
+  app_version?: string;
+  platform?: string;
+  created_at: string;
+}
+
+export interface TwilioUsageRecord {
+  id: string;
+  care_circle_id: string;
+  message_sid?: string | null;
+  cost_estimate_usd: number; // Cost estimate constant per SMS segment ($0.0079)
+  status: 'sent' | 'delivered' | 'failed' | 'undelivered';
+  escalation_stage: number;
   created_at: string;
 }
 

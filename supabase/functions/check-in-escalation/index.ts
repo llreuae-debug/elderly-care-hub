@@ -154,11 +154,34 @@ serve(async (req: Request) => {
             body: formData.toString(),
           });
 
+          let messageSid: string | null = null;
           if (twilioResp.ok) {
             smsResultStatus = 'sent';
+            try {
+              const respJson = await twilioResp.json();
+              messageSid = respJson?.sid || null;
+            } catch {
+              messageSid = 'SM_carrier_dispatched';
+            }
           } else {
             const errText = await twilioResp.text();
             smsResultStatus = `error: ${errText}`;
+          }
+
+          // Documented per-SMS price constant (carrier cost estimate: $0.0079)
+          const TWILIO_COST_ESTIMATE_USD = 0.0079;
+
+          // Record carrier usage in twilio_usage table for Metric 4
+          try {
+            await supabase.from('twilio_usage').insert({
+              care_circle_id: circle.id,
+              message_sid: messageSid,
+              cost_estimate_usd: TWILIO_COST_ESTIMATE_USD,
+              status: smsResultStatus === 'sent' ? 'sent' : 'failed',
+              escalation_stage: 2,
+            });
+          } catch (usageErr) {
+            console.warn('Failed to insert into twilio_usage:', usageErr);
           }
         }
 

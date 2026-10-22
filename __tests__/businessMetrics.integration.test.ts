@@ -357,4 +357,39 @@ describe('Business Metrics Instrumentation & Measurement Layer (6 Metrics)', () 
       });
     });
   });
+
+  describe('Phase 1 Event Pipeline Requirements', () => {
+    it('supports tiny typed track(event, props) wrapper with app_version and platform', () => {
+      const evt = analyticsService.track(
+        'screen_viewed',
+        { screen_name: 'today' },
+        { circleId: SEED_CARE_CIRCLE.id }
+      );
+
+      expect(evt.event_name).toBe('screen_viewed');
+      expect(evt.app_version).toBe('1.0.0');
+      expect(typeof evt.platform).toBe('string');
+      expect(evt.circle_id).toBe(SEED_CARE_CIRCLE.id);
+      expect(evt.care_circle_id).toBe(SEED_CARE_CIRCLE.id);
+    });
+
+    it('flushes batched events asynchronously without blocking UI', async () => {
+      analyticsService.track('app_opened', {});
+      analyticsService.track('screen_viewed', { screen_name: 'timeline' });
+
+      const tracked = analyticsService.getTrackedEvents();
+      expect(tracked.length).toBeGreaterThanOrEqual(2);
+
+      await expect(analyticsService.flush()).resolves.toBeUndefined();
+    });
+
+    it('records documented SMS price constant estimate of $0.0079 per message segment', async () => {
+      await billingAnalyticsService.recordSmsDispatched(SEED_CARE_CIRCLE.id, 0.0079, 2);
+
+      const events = analyticsService.getTrackedEvents('sms_dispatched');
+      expect(events.length).toBeGreaterThan(0);
+      expect(events[0].properties.cost_usd).toBe(0.0079);
+      expect(events[0].properties.escalation_stage).toBe(2);
+    });
+  });
 });

@@ -547,20 +547,20 @@ export const billingAnalyticsService = {
           twilioUsageRows.reduce((acc, row) => {
             const cost = Number(row.cost_estimate_usd || 0.0079);
             return acc + cost;
-          }, 0) * 1000
-        ) / 1000;
+          }, 0) * 10000
+        ) / 10000;
     } else {
       totalTwilioSpendUsd =
         Math.round(
           smsEvents.reduce((acc, curr) => {
             const cost = Number(curr.properties.cost_usd || 0.0079);
             return acc + cost;
-          }, 0) * 1000
-        ) / 1000;
+          }, 0) * 10000
+        ) / 10000;
     }
 
     const costPerUserUsd =
-      Math.round((totalTwilioSpendUsd / payingUsersCount) * 1000) / 1000;
+      Math.round((totalTwilioSpendUsd / payingUsersCount) * 10000) / 10000;
 
     // 5. Metric 5: Activation Rate & Time to Activate (First check-in completed)
     const activationEvents = allEvents.filter(

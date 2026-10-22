@@ -178,8 +178,8 @@ describe('Business Metrics Instrumentation & Measurement Layer (6 Metrics)', () 
 
       expect(metrics.smsCostPerUser.totalTwilioSpendUsd).toBe(0.079);
       expect(metrics.smsCostPerUser.activeFamilyUsersCount).toBe(2);
-      // Cost per user = $0.079 / 2 = $0.0395 -> rounded to $0.040
-      expect(metrics.smsCostPerUser.costPerUserUsd).toBe(0.04);
+      // Cost per user = $0.079 / 2 = $0.0395
+      expect(metrics.smsCostPerUser.costPerUserUsd).toBe(0.0395);
     });
 
     it('records sms_dispatched during emergency Call for Help with zero PII', async () => {

@@ -194,9 +194,9 @@ export const AnalyticsDashboardScreen: React.FC<AnalyticsDashboardScreenProps> =
   // Render Empty State when no events exist
   const renderEmptyState = (metricName: string) => (
     <View style={styles.emptyStateBox}>
-      <Text style={styles.emptyStateTitle}>⚠️ No Events Recorded ({metricName})</Text>
+      <Text style={styles.emptyStateTitle}>⚠️ Not enough data yet ({metricName})</Text>
       <Text style={styles.emptyStateSub}>
-        Empty state displayed — fake numbers are strictly prohibited. The metric will populate once the first valid event is ingested.
+        Not enough data yet. Awaiting first valid event or database row — zeros that look like real measurements are strictly prohibited.
       </Text>
     </View>
   );

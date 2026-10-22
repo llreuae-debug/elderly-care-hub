@@ -285,3 +285,67 @@ export interface QueuedCheckIn {
   queued_at: string;
 }
 
+// Phase 2: Server-Side Truth Views (Service Role Only)
+export interface ServerViewMrr {
+  month: string;
+  active_subscriptions: number;
+  monthly_plan_mrr_usd: number;
+  annual_plan_mrr_usd: number;
+  total_mrr_usd: number;
+}
+
+export interface ServerViewConversionCohorts {
+  signup_cohort_month: string;
+  total_circles_in_cohort: number;
+  paid_month_1: number;
+  conversion_rate_m1_pct: number;
+  paid_month_2: number;
+  conversion_rate_m2_pct: number;
+  paid_month_3: number;
+  conversion_rate_m3_pct: number;
+}
+
+export interface ServerViewChurn {
+  month: string;
+  active_subscribers_start: number;
+  voluntary_cancellations: number;
+  voluntary_churn_rate_pct: number;
+  involuntary_payment_failures: number;
+  involuntary_churn_rate_pct: number;
+  total_churn_rate_pct: number;
+}
+
+export interface ServerViewArpu {
+  month: string;
+  paying_users_count: number;
+  total_revenue_usd: number;
+  arpu_usd: number;
+}
+
+export interface ServerViewSmsCostPerUser {
+  month: string;
+  total_sms_sent: number;
+  total_twilio_spend_usd: number;
+  active_family_subscribers: number;
+  sms_cost_per_user_usd: number;
+  sms_cost_pct_of_arpu: number;
+}
+
+export interface ServerViewActivation {
+  cohort_month: string;
+  total_circles_created: number;
+  total_activated: number;
+  activated_within_7d: number;
+  activation_rate_7d_pct: number;
+  avg_time_to_activate_hours: number;
+  median_time_to_activate_hours: number;
+}
+
+export interface ServerViewInvites {
+  total_circles_count: number;
+  total_invites_sent: number;
+  invites_per_circle: number;
+  total_invites_accepted: number;
+  invite_acceptance_rate_pct: number;
+}
+

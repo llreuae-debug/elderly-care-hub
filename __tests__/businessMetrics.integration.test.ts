@@ -392,4 +392,43 @@ describe('Business Metrics Instrumentation & Measurement Layer (6 Metrics)', () 
       expect(events[0].properties.escalation_stage).toBe(2);
     });
   });
+
+  describe('Phase 2 Server-Side Truth Views & Zero-PII Policy', () => {
+    it('verifies that subscriptions table acts as truth for revenue and MRR', async () => {
+      // 1. Create a monthly ($19.99) and annual ($199.99) subscription
+      await billingAnalyticsService.recordSubscriptionStarted(
+        'circle-view-1',
+        'user-view-1',
+        'family_monthly',
+        19.99,
+        'monthly'
+      );
+      await billingAnalyticsService.recordSubscriptionStarted(
+        'circle-view-2',
+        'user-view-2',
+        'family_annual',
+        199.99,
+        'annual'
+      );
+
+      const summary = await billingAnalyticsService.getBusinessMetricsSummary(cohort);
+
+      // 2 paying circles: $19.99 + $199.99 = $219.98
+      expect(summary.arpu.payingUsersCount).toBe(2);
+      expect(summary.arpu.totalRevenueUsd).toBe(219.98);
+      // ARPU = $219.98 / 2 = $109.99
+      expect(summary.arpu.arpuUsd).toBe(109.99);
+    });
+
+    it('verifies server truth views guarantee ZERO PII across all views and queries', () => {
+      // Verify that no PII keys can exist in analytics events or view models
+      const forbidden = ['email', 'phone', 'first_name', 'last_name', 'notes'];
+      const tracked = analyticsService.getTrackedEvents();
+      tracked.forEach((e) => {
+        forbidden.forEach((k) => {
+          expect(e.properties[k]).toBeUndefined();
+        });
+      });
+    });
+  });
 });

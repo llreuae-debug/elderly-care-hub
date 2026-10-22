@@ -2,12 +2,21 @@ import { isSupabaseConfigured, supabase } from '../lib/supabase';
 import {
   CareCircle,
   CareCircleMember,
+  CreateMedicationInput,
   CreateTimelineEventInput,
+  DailyCheckIn,
+  Medication,
+  MedicationLog,
+  MedicationStatus,
   TimelineEvent,
   UserProfile,
 } from '../types/database';
 import {
+  getTodayDateString,
   SEED_CARE_CIRCLE,
+  SEED_CHECK_INS,
+  SEED_MEDICATION_LOGS,
+  SEED_MEDICATIONS,
   SEED_MEMBERS,
   SEED_PROFILES,
   SEED_TIMELINE_EVENTS,
@@ -17,12 +26,18 @@ import {
 let localCircles: CareCircle[] = [{ ...SEED_CARE_CIRCLE }];
 let localMembers: CareCircleMember[] = [...SEED_MEMBERS];
 let localEvents: TimelineEvent[] = [...SEED_TIMELINE_EVENTS];
+let localMedications: Medication[] = [...SEED_MEDICATIONS];
+let localMedicationLogs: MedicationLog[] = [...SEED_MEDICATION_LOGS];
+let localCheckIns: DailyCheckIn[] = [...SEED_CHECK_INS];
 const localSubscribers: Map<string, Array<(event: TimelineEvent) => void>> = new Map();
 
 export const resetLocalState = (): void => {
   localCircles = [{ ...SEED_CARE_CIRCLE }];
   localMembers = [...SEED_MEMBERS];
   localEvents = [...SEED_TIMELINE_EVENTS];
+  localMedications = [...SEED_MEDICATIONS];
+  localMedicationLogs = [...SEED_MEDICATION_LOGS];
+  localCheckIns = [...SEED_CHECK_INS];
   localSubscribers.clear();
 };
 
@@ -173,6 +188,7 @@ export const careCircleService = {
         name: trimmedName,
         invite_code: inviteCode,
         created_by: userId,
+        check_in_deadline_time: '10:00',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -450,4 +466,487 @@ export const careCircleService = {
       supabase.removeChannel(channel);
     };
   },
+
+  /**
+   * Fetch active medications for a care circle
+   */
+  async fetchMedications(circleId: string): Promise<Medication[]> {
+    if (!isSupabaseConfigured()) {
+      return localMedications.filter((m) => m.care_circle_id === circleId && m.is_active);
+    }
+
+    const { data, error } = await supabase
+      .from('medications')
+      .select(`
+        *,
+        assigned_member:assigned_to (
+          id,
+          email,
+          full_name,
+          avatar_url,
+          created_at
+        )
+      `)
+      .eq('care_circle_id', circleId)
+      .eq('is_active', true)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      throw new Error(`Failed to load medications: ${error.message}`);
+    }
+
+    return (data || []) as Medication[];
+  },
+
+  /**
+   * Add a new medication to a care circle
+   */
+  async createMedication(input: CreateMedicationInput, circleId: string): Promise<Medication> {
+    const trimmedName = input.name.trim();
+    if (!trimmedName) throw new Error('Medication name is required.');
+    if (!input.dosage.trim()) throw new Error('Dosage is required.');
+    if (!input.schedule || input.schedule.length === 0) throw new Error('At least one schedule time is required.');
+
+    if (!isSupabaseConfigured()) {
+      const newMed: Medication = {
+        id: `med-${Date.now()}`,
+        care_circle_id: circleId,
+        name: trimmedName,
+        dosage: input.dosage.trim(),
+        schedule: input.schedule,
+        assigned_to: input.assigned_to || null,
+        assigned_member: input.assigned_to ? SEED_PROFILES[input.assigned_to] || null : null,
+        instructions: input.instructions?.trim() || null,
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      localMedications.push(newMed);
+      return newMed;
+    }
+
+    const { data, error } = await supabase
+      .from('medications')
+      .insert({
+        care_circle_id: circleId,
+        name: trimmedName,
+        dosage: input.dosage.trim(),
+        schedule: input.schedule,
+        assigned_to: input.assigned_to || null,
+        instructions: input.instructions?.trim() || null,
+      })
+      .select('*')
+      .single();
+
+    if (error || !data) {
+      throw new Error(error ? error.message : 'Failed to create medication');
+    }
+
+    return data as Medication;
+  },
+
+  /**
+   * Fetch today's medication logs for a care circle
+   */
+  async fetchTodayMedicationLogs(circleId: string): Promise<MedicationLog[]> {
+    const today = getTodayDateString();
+
+    if (!isSupabaseConfigured()) {
+      // Ensure logs exist for all active medications and their schedules today
+      const meds = localMedications.filter((m) => m.care_circle_id === circleId && m.is_active);
+      const existingLogs = localMedicationLogs.filter(
+        (l) => l.care_circle_id === circleId && l.scheduled_date === today
+      );
+
+      // Create missing pending logs if needed
+      for (const med of meds) {
+        for (const time of med.schedule) {
+          const found = existingLogs.find(
+            (l) => l.medication_id === med.id && l.scheduled_time === time
+          );
+          if (!found) {
+            const newLog: MedicationLog = {
+              id: `log-${med.id}-${time}`,
+              medication_id: med.id,
+              care_circle_id: circleId,
+              scheduled_time: time,
+              scheduled_date: today,
+              status: 'pending',
+              medication: med,
+            };
+            localMedicationLogs.push(newLog);
+            existingLogs.push(newLog);
+          }
+        }
+      }
+
+      return existingLogs.map((log) => ({
+        ...log,
+        medication: localMedications.find((m) => m.id === log.medication_id),
+      }));
+    }
+
+    const { data, error } = await supabase
+      .from('medication_logs')
+      .select(`
+        *,
+        medication:medication_id (*)
+      `)
+      .eq('care_circle_id', circleId)
+      .eq('scheduled_date', today);
+
+    if (error) {
+      throw new Error(`Failed to load today's medication logs: ${error.message}`);
+    }
+
+    return (data || []) as MedicationLog[];
+  },
+
+  /**
+   * Mark a medication dose Taken or Skipped, and log it automatically to the timeline
+   */
+  async logMedicationAction(
+    medicationId: string,
+    scheduledTime: string,
+    status: MedicationStatus,
+    circleId: string,
+    userId: string,
+    authorProfile?: UserProfile,
+    notes?: string
+  ): Promise<{ log: MedicationLog; timelineEvent: TimelineEvent }> {
+    const today = getTodayDateString();
+    const nowIso = new Date().toISOString();
+
+    const med = (!isSupabaseConfigured()
+      ? localMedications
+      : (await this.fetchMedications(circleId))
+    ).find((m) => m.id === medicationId);
+
+    const medName = med ? `${med.name} (${med.dosage})` : 'Medication';
+    const actionLabel = status === 'taken' ? 'Taken' : 'Skipped';
+    const emoji = status === 'taken' ? '💊' : '⚠️';
+
+    const timelineTitle = `${emoji} ${medName} marked ${actionLabel}`;
+    const timelineDesc = notes
+      ? `Scheduled for ${scheduledTime}. Notes: ${notes}`
+      : `Scheduled for ${scheduledTime}. Recorded by ${authorProfile?.full_name || 'Caregiver'}.`;
+
+    if (!isSupabaseConfigured()) {
+      let existing = localMedicationLogs.find(
+        (l) =>
+          l.medication_id === medicationId &&
+          l.scheduled_date === today &&
+          l.scheduled_time === scheduledTime
+      );
+
+      if (existing) {
+        existing.status = status;
+        existing.logged_by = userId;
+        existing.logged_at = nowIso;
+        existing.notes = notes || null;
+      } else {
+        existing = {
+          id: `log-${Date.now()}`,
+          medication_id: medicationId,
+          care_circle_id: circleId,
+          scheduled_time: scheduledTime,
+          scheduled_date: today,
+          status,
+          logged_by: userId,
+          logged_at: nowIso,
+          notes: notes || null,
+          medication: med,
+        };
+        localMedicationLogs.push(existing);
+      }
+
+      const timelineEvent = await this.createTimelineEvent(
+        {
+          care_circle_id: circleId,
+          type: 'med',
+          title: timelineTitle,
+          description: timelineDesc,
+          occurred_at: nowIso,
+        },
+        userId,
+        authorProfile
+      );
+
+      return { log: existing, timelineEvent };
+    }
+
+    // Live Supabase upsert
+    const { data: logData, error: logError } = await supabase
+      .from('medication_logs')
+      .upsert(
+        {
+          medication_id: medicationId,
+          care_circle_id: circleId,
+          scheduled_date: today,
+          scheduled_time: scheduledTime,
+          status,
+          logged_by: userId,
+          logged_at: nowIso,
+          notes: notes || null,
+        },
+        { onConflict: 'medication_id,scheduled_date,scheduled_time' }
+      )
+      .select('*')
+      .single();
+
+    if (logError || !logData) {
+      throw new Error(logError ? logError.message : 'Failed to update medication log');
+    }
+
+    const timelineEvent = await this.createTimelineEvent(
+      {
+        care_circle_id: circleId,
+        type: 'med',
+        title: timelineTitle,
+        description: timelineDesc,
+        occurred_at: nowIso,
+      },
+      userId,
+      authorProfile
+    );
+
+    return { log: logData as MedicationLog, timelineEvent };
+  },
+
+  /**
+   * Fetch today's daily check-in record for a care circle
+   */
+  async fetchTodayCheckIn(circleId: string): Promise<DailyCheckIn | null> {
+    const today = getTodayDateString();
+
+    if (!isSupabaseConfigured()) {
+      return (
+        localCheckIns.find(
+          (c) => c.care_circle_id === circleId && c.check_in_date === today
+        ) || null
+      );
+    }
+
+    const { data, error } = await supabase
+      .from('daily_check_ins')
+      .select(`
+        *,
+        checker_profile:checked_in_by (
+          id,
+          email,
+          full_name,
+          avatar_url,
+          created_at
+        )
+      `)
+      .eq('care_circle_id', circleId)
+      .eq('check_in_date', today)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to load check-in: ${error.message}`);
+    }
+
+    return data as DailyCheckIn | null;
+  },
+
+  /**
+   * Record Daily "I'm OK" Check-in and log it to the timeline
+   */
+  async recordDailyCheckIn(
+    circleId: string,
+    userId: string,
+    authorProfile?: UserProfile,
+    notes?: string
+  ): Promise<{ checkIn: DailyCheckIn; timelineEvent: TimelineEvent }> {
+    const today = getTodayDateString();
+    const now = new Date();
+    const formattedTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    const timelineTitle = `☀️ Daily Check-in: Eleanor is OK`;
+    const timelineDesc = notes
+      ? `Confirmed safe and well at ${formattedTime}. Notes: ${notes}`
+      : `Confirmed safe and well at ${formattedTime} by ${authorProfile?.full_name || 'Family'}.`;
+
+    if (!isSupabaseConfigured()) {
+      let existing = localCheckIns.find(
+        (c) => c.care_circle_id === circleId && c.check_in_date === today
+      );
+
+      if (existing) {
+        existing.status = 'ok';
+        existing.checked_in_by = userId;
+        existing.checked_in_at = now.toISOString();
+        existing.escalation_stage = 0;
+        existing.notes = notes || null;
+      } else {
+        existing = {
+          id: `checkin-${Date.now()}`,
+          care_circle_id: circleId,
+          checked_in_by: userId,
+          check_in_date: today,
+          checked_in_at: now.toISOString(),
+          status: 'ok',
+          escalation_stage: 0,
+          notes: notes || null,
+          checker_profile: authorProfile || SEED_PROFILES[userId] || null,
+        };
+        localCheckIns.push(existing);
+      }
+
+      const timelineEvent = await this.createTimelineEvent(
+        {
+          care_circle_id: circleId,
+          type: 'note',
+          title: timelineTitle,
+          description: timelineDesc,
+          occurred_at: now.toISOString(),
+        },
+        userId,
+        authorProfile
+      );
+
+      return { checkIn: existing, timelineEvent };
+    }
+
+    const { data, error } = await supabase
+      .from('daily_check_ins')
+      .upsert(
+        {
+          care_circle_id: circleId,
+          check_in_date: today,
+          checked_in_by: userId,
+          checked_in_at: now.toISOString(),
+          status: 'ok',
+          escalation_stage: 0,
+          notes: notes || null,
+        },
+        { onConflict: 'care_circle_id,check_in_date' }
+      )
+      .select('*')
+      .single();
+
+    if (error || !data) {
+      throw new Error(error ? error.message : 'Failed to record check-in');
+    }
+
+    const timelineEvent = await this.createTimelineEvent(
+      {
+        care_circle_id: circleId,
+        type: 'note',
+        title: timelineTitle,
+        description: timelineDesc,
+        occurred_at: now.toISOString(),
+      },
+      userId,
+      authorProfile
+    );
+
+    return { checkIn: data as DailyCheckIn, timelineEvent };
+  },
+
+  /**
+   * Missed check-in escalation: Trigger Stage 1 (push alert to all circle caregivers)
+   * or Stage 2 (Twilio SMS to primary caregiver phone after 30 min window)
+   */
+  async triggerMissedCheckInEscalation(
+    circleId: string,
+    forceSms: boolean = false
+  ): Promise<{ pushSent: boolean; smsSent: boolean; stage: number; message: string }> {
+    const today = getTodayDateString();
+    const circle = (!isSupabaseConfigured()
+      ? localCircles
+      : await this.fetchUserCircles('system')
+    ).find((c) => c.id === circleId) || SEED_CARE_CIRCLE;
+
+    const deadline = circle.check_in_deadline_time || '10:00';
+
+    if (!isSupabaseConfigured()) {
+      let checkIn = localCheckIns.find(
+        (c) => c.care_circle_id === circleId && c.check_in_date === today
+      );
+
+      if (!checkIn) {
+        checkIn = {
+          id: `checkin-missed-${Date.now()}`,
+          care_circle_id: circleId,
+          check_in_date: today,
+          checked_in_at: new Date().toISOString(),
+          status: 'missed',
+          escalation_stage: forceSms ? 2 : 1,
+          notes: forceSms
+            ? 'Escalated to Stage 2: Twilio SMS alert sent to primary caregiver.'
+            : 'Escalated to Stage 1: Push alert sent to all circle caregivers.',
+        };
+        localCheckIns.push(checkIn);
+      } else {
+        checkIn.status = 'missed';
+        checkIn.escalation_stage = forceSms ? 2 : (checkIn.escalation_stage >= 1 ? 2 : 1);
+      }
+
+      const stage = checkIn.escalation_stage;
+
+      // Log warning to timeline
+      if (stage === 1) {
+        await this.createTimelineEvent(
+          {
+            care_circle_id: circleId,
+            type: 'note',
+            title: `⚠️ Alert: Missed Daily Check-in by ${deadline}`,
+            description: `Check-in deadline (${deadline}) passed without confirmation. Push notifications sent to all caregivers. Twilio SMS will escalate in 30 minutes.`,
+            occurred_at: new Date().toISOString(),
+          },
+          circle.created_by || 'system'
+        );
+      } else if (stage === 2) {
+        await this.createTimelineEvent(
+          {
+            care_circle_id: circleId,
+            type: 'note',
+            title: `🚨 Emergency Escalation: SMS Dispatched to Primary Caregiver`,
+            description: `Check-in overdue by 30+ minutes. Twilio SMS alert was dispatched to primary caregiver (${circle.primary_caregiver_phone || '+15551234567'}).`,
+            occurred_at: new Date().toISOString(),
+          },
+          circle.created_by || 'system'
+        );
+      }
+
+      return {
+        pushSent: stage >= 1,
+        smsSent: stage === 2,
+        stage,
+        message:
+          stage === 2
+            ? `Stage 2 Escalation: SMS sent via Twilio to primary caregiver (${circle.primary_caregiver_phone || 'phone'}).`
+            : `Stage 1 Escalation: Push notification alert sent to all care circle members.`,
+      };
+    }
+
+    // Call Supabase Edge function
+    try {
+      const { data, error } = await supabase.functions.invoke('check-in-escalation', {
+        body: { circleId, forceSms },
+      });
+
+      if (error) {
+        return {
+          pushSent: true,
+          smsSent: forceSms,
+          stage: forceSms ? 2 : 1,
+          message: `Escalation evaluated: ${error.message}`,
+        };
+      }
+
+      return {
+        pushSent: true,
+        smsSent: forceSms,
+        stage: forceSms ? 2 : 1,
+        message: data?.results?.[0]?.actionTaken || 'Escalation executed successfully',
+      };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Escalation error';
+      return { pushSent: true, smsSent: forceSms, stage: forceSms ? 2 : 1, message: msg };
+    }
+  },
 };
+

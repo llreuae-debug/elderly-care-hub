@@ -25,12 +25,14 @@ import { AddNoteScreen } from './AddNoteScreen';
 interface TimelineScreenProps {
   circle: CareCircle;
   currentUser: UserProfile;
+  onNavigateToToday: () => void;
   onBackToCircles: () => void;
 }
 
 export const TimelineScreen: React.FC<TimelineScreenProps> = ({
   circle,
   currentUser,
+  onNavigateToToday,
   onBackToCircles,
 }) => {
   const [events, setEvents] = useState<TimelineEvent[]>([]);
@@ -122,10 +124,25 @@ export const TimelineScreen: React.FC<TimelineScreenProps> = ({
             <Text style={styles.backButtonText}>← Circles</Text>
           </TouchableOpacity>
 
+          {/* Tab Switcher: Today vs Timeline */}
+          <View style={styles.tabSwitcher}>
+            <TouchableOpacity
+              onPress={onNavigateToToday}
+              style={styles.tabButton}
+              accessibilityRole="button"
+              accessibilityLabel="View Today Schedule"
+            >
+              <Text style={styles.tabTextInactive}>☀️ Today</Text>
+            </TouchableOpacity>
+            <View style={[styles.tabButton, styles.tabButtonActive]}>
+              <Text style={styles.tabTextActive}>📜 Timeline</Text>
+            </View>
+          </View>
+
           <View style={styles.realtimeIndicator}>
             <View style={styles.pulseDot} />
             <Text style={styles.realtimeText}>
-              {isSupabaseConfigured() ? 'Supabase Live' : 'Demo Realtime'}
+              {isSupabaseConfigured() ? 'Live' : 'Realtime'}
             </Text>
           </View>
         </View>
@@ -261,6 +278,35 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#0E7490',
+  },
+  tabSwitcher: {
+    flexDirection: 'row',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 12,
+    padding: 3,
+  },
+  tabButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+  },
+  tabButtonActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  tabTextActive: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0E7490',
+  },
+  tabTextInactive: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748B',
   },
   realtimeIndicator: {
     flexDirection: 'row',

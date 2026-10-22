@@ -6,12 +6,14 @@ import { isSupabaseConfigured, supabase } from './src/lib/supabase';
 import { AuthScreen } from './src/screens/AuthScreen';
 import { CircleSelectScreen } from './src/screens/CircleSelectScreen';
 import { TimelineScreen } from './src/screens/TimelineScreen';
+import { TodayScreen } from './src/screens/TodayScreen';
 import { SEED_CARE_CIRCLE, SEED_PROFILES } from './src/services/mockData';
 import { CareCircle, UserProfile } from './src/types/database';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [activeCircle, setActiveCircle] = useState<CareCircle | null>(null);
+  const [activeTab, setActiveTab] = useState<'today' | 'timeline'>('today');
 
   useEffect(() => {
     if (!isSupabaseConfigured()) {
@@ -63,7 +65,13 @@ export default function App() {
     // If logging in as one of the seed users, automatically connect to the seed circle
     if (user.id === '11111111-1111-1111-1111-111111111111' || user.id === '22222222-2222-2222-2222-222222222222') {
       setActiveCircle(SEED_CARE_CIRCLE);
+      setActiveTab('today');
     }
+  };
+
+  const handleSelectCircle = (circle: CareCircle) => {
+    setActiveCircle(circle);
+    setActiveTab('today');
   };
 
   const handleSignOut = async () => {
@@ -84,13 +92,21 @@ export default function App() {
           ) : !activeCircle ? (
             <CircleSelectScreen
               currentUser={currentUser}
-              onSelectCircle={setActiveCircle}
+              onSelectCircle={handleSelectCircle}
               onSignOut={handleSignOut}
+            />
+          ) : activeTab === 'today' ? (
+            <TodayScreen
+              circle={activeCircle}
+              currentUser={currentUser}
+              onNavigateToTimeline={() => setActiveTab('timeline')}
+              onBackToCircles={() => setActiveCircle(null)}
             />
           ) : (
             <TimelineScreen
               circle={activeCircle}
               currentUser={currentUser}
+              onNavigateToToday={() => setActiveTab('today')}
               onBackToCircles={() => setActiveCircle(null)}
             />
           )}

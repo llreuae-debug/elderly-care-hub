@@ -2,13 +2,19 @@ import { isSupabaseConfigured, supabase } from '../lib/supabase';
 import {
   CareCircle,
   CareCircleMember,
+  CaregiverShift,
+  CompleteHandoffInput,
+  CoverageStatus,
   CreateMedicationInput,
+  CreateShiftInput,
   CreateTimelineEventInput,
   DailyCheckIn,
   ElderSession,
   Medication,
   MedicationLog,
   MedicationStatus,
+  ShiftStatus,
+  ShiftTask,
   TimelineEvent,
   UserProfile,
 } from '../types/database';
@@ -22,6 +28,8 @@ import {
   SEED_MEDICATIONS,
   SEED_MEMBERS,
   SEED_PROFILES,
+  SEED_SHIFTS,
+  SEED_SHIFT_TASKS,
   SEED_TIMELINE_EVENTS,
 } from './mockData';
 
@@ -32,6 +40,11 @@ let localEvents: TimelineEvent[] = [...SEED_TIMELINE_EVENTS];
 let localMedications: Medication[] = [...SEED_MEDICATIONS];
 let localMedicationLogs: MedicationLog[] = [...SEED_MEDICATION_LOGS];
 let localCheckIns: DailyCheckIn[] = [...SEED_CHECK_INS];
+let localShifts: CaregiverShift[] = SEED_SHIFTS.map((s) => ({
+  ...s,
+  tasks: (s.tasks || []).map((t) => ({ ...t })),
+}));
+let localShiftTasks: ShiftTask[] = SEED_SHIFT_TASKS.map((t) => ({ ...t }));
 const localSubscribers: Map<string, Array<(event: TimelineEvent) => void>> = new Map();
 
 export const resetLocalState = (): void => {
@@ -41,6 +54,11 @@ export const resetLocalState = (): void => {
   localMedications = [...SEED_MEDICATIONS];
   localMedicationLogs = [...SEED_MEDICATION_LOGS];
   localCheckIns = [...SEED_CHECK_INS];
+  localShifts = SEED_SHIFTS.map((s) => ({
+    ...s,
+    tasks: (s.tasks || []).map((t) => ({ ...t })),
+  }));
+  localShiftTasks = SEED_SHIFT_TASKS.map((t) => ({ ...t }));
   localSubscribers.clear();
 };
 
@@ -1218,6 +1236,508 @@ export const careCircleService = {
       const msg = err instanceof Error ? err.message : 'Escalation error';
       return { pushSent: true, smsSent: forceSms, stage: forceSms ? 2 : 1, message: msg };
     }
+  },
+
+  /**
+   * Phase 4: Fetch today's shifts for a care circle
+   */
+  async fetchTodayShifts(
+    circleId: string,
+    date: string = getTodayDateString()
+  ): Promise<CaregiverShift[]> {
+    if (!isSupabaseConfigured()) {
+      const shifts = localShifts
+        .filter((s) => s.care_circle_id === circleId && s.date === date)
+        .map((s) => {
+          const tasks = localShiftTasks.filter((t) => t.shift_id === s.id);
+          const caregiver = SEED_PROFILES[s.caregiver_id] || s.caregiver || null;
+          return {
+            ...s,
+            tasks,
+            caregiver,
+          };
+        })
+        .sort((a, b) => a.start_time.localeCompare(b.start_time));
+      return shifts;
+    }
+
+    const { data, error } = await supabase
+      .from('caregiver_shifts')
+      .select('*, tasks:shift_tasks(*), caregiver:profiles(*)')
+      .eq('care_circle_id', circleId)
+      .eq('date', date)
+      .order('start_time', { ascending: true });
+
+    if (error) {
+      console.warn('Error fetching shifts from Supabase:', error);
+      return [];
+    }
+
+    return (data || []) as CaregiverShift[];
+  },
+
+  /**
+   * Phase 4: Today's Coverage Status (Current caregiver, Next caregiver, Coverage gap warning)
+   */
+  async fetchCoverageStatus(
+    circleId: string,
+    date: string = getTodayDateString()
+  ): Promise<CoverageStatus> {
+    const allTodayShifts = await this.fetchTodayShifts(circleId, date);
+
+    if (allTodayShifts.length === 0) {
+      return {
+        currentShift: null,
+        nextShift: null,
+        hasCoverageGap: true,
+        gapMessage: '⚠️ No caregiver coverage scheduled for today. Please assign a shift.',
+        allTodayShifts: [],
+      };
+    }
+
+    const now = new Date();
+    const currentHHMM = `${String(now.getHours()).padStart(2, '0')}:${String(
+      now.getMinutes()
+    ).padStart(2, '0')}`;
+
+    // 1. Determine who is responsible right now
+    // Active shift: matching current time window and not completed/cancelled, or explicitly marked in_progress
+    let currentShift = allTodayShifts.find(
+      (s) =>
+        s.status === 'in_progress' ||
+        (s.status !== 'completed' &&
+          s.status !== 'cancelled' &&
+          s.start_time <= currentHHMM &&
+          currentHHMM < s.end_time)
+    ) || null;
+
+    // Fallback: If no shift active right now, check if there's any active shift that hasn't been completed yet
+    if (!currentShift) {
+      currentShift =
+        allTodayShifts.find((s) => s.status === 'scheduled' && s.start_time <= currentHHMM) ||
+        null;
+    }
+
+    // 2. Determine who is next
+    let nextShift: CaregiverShift | null = null;
+    if (currentShift) {
+      nextShift =
+        allTodayShifts.find(
+          (s) =>
+            s.id !== currentShift?.id &&
+            s.status !== 'cancelled' &&
+            s.status !== 'completed' &&
+            s.start_time >= (currentShift?.end_time || '')
+        ) || null;
+      if (!nextShift) {
+        nextShift =
+          allTodayShifts.find(
+            (s) =>
+              s.id !== currentShift?.id &&
+              s.status !== 'cancelled' &&
+              s.status !== 'completed' &&
+              s.start_time > (currentShift?.start_time || '')
+          ) || null;
+      }
+    } else {
+      nextShift =
+        allTodayShifts.find(
+          (s) =>
+            s.status !== 'cancelled' &&
+            s.status !== 'completed' &&
+            s.start_time >= currentHHMM
+        ) ||
+        allTodayShifts.find(
+          (s) => s.status !== 'cancelled' && s.status !== 'completed'
+        ) ||
+        null;
+    }
+
+    // 3. Evaluate coverage gaps
+    let hasCoverageGap = false;
+    let gapMessage: string | undefined = undefined;
+
+    if (!currentShift) {
+      hasCoverageGap = true;
+      if (nextShift) {
+        gapMessage = `⚠️ No caregiver on duty right now. Next coverage starts at ${nextShift.start_time} (${nextShift.caregiver?.full_name?.split(' ')[0] || 'Caregiver'}).`;
+      } else {
+        gapMessage = '⚠️ No active caregiver on duty right now.';
+      }
+    } else if (nextShift) {
+      // Check for gap between current shift end and next shift start
+      if (nextShift.start_time > currentShift.end_time) {
+        hasCoverageGap = true;
+        gapMessage = `⚠️ Coverage gap: No caregiver assigned between ${currentShift.end_time} and ${nextShift.start_time}.`;
+      }
+    } else if (currentShift.status === 'completed') {
+      hasCoverageGap = true;
+      gapMessage = `⚠️ Shift completed. No upcoming coverage scheduled for the remainder of today.`;
+    }
+
+    return {
+      currentShift,
+      nextShift,
+      hasCoverageGap,
+      gapMessage,
+      allTodayShifts,
+    };
+  },
+
+  /**
+   * Phase 4: Create / Assign a shift (Restricted to Admins via RLS)
+   */
+  async createShift(
+    input: CreateShiftInput,
+    callerUserId: string
+  ): Promise<CaregiverShift> {
+    const members = !isSupabaseConfigured()
+      ? localMembers
+      : await this.fetchCircleMembers(input.care_circle_id);
+
+    const callerMember = members.find(
+      (m) => m.care_circle_id === input.care_circle_id && m.user_id === callerUserId
+    );
+
+    if (!callerMember || callerMember.role !== 'admin') {
+      throw new Error(
+        'Permission denied: Only Care Circle Admins can create or assign shifts (RLS policy violation).'
+      );
+    }
+
+    if (!input.caregiver_id) throw new Error('Caregiver ID is required.');
+    if (!input.start_time) throw new Error('Start time is required.');
+    if (!input.end_time) throw new Error('End time is required.');
+    if (input.start_time >= input.end_time) {
+      throw new Error('Shift start time must be earlier than end time.');
+    }
+
+    const shiftDate = input.date || getTodayDateString();
+
+    if (!isSupabaseConfigured()) {
+      const shiftId = `shift-${Date.now()}`;
+      const initialTasks: ShiftTask[] = (input.initial_tasks || []).map((title, idx) => ({
+        id: `task-${Date.now()}-${idx}`,
+        shift_id: shiftId,
+        title: title.trim(),
+        completed: false,
+        created_at: new Date().toISOString(),
+      }));
+
+      const caregiver = SEED_PROFILES[input.caregiver_id] || null;
+
+      const newShift: CaregiverShift = {
+        id: shiftId,
+        care_circle_id: input.care_circle_id,
+        caregiver_id: input.caregiver_id,
+        date: shiftDate,
+        start_time: input.start_time,
+        end_time: input.end_time,
+        status: 'scheduled',
+        caregiver,
+        tasks: initialTasks,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      localShifts.push(newShift);
+      localShiftTasks.push(...initialTasks);
+      return newShift;
+    }
+
+    const { data: shiftData, error: shiftError } = await supabase
+      .from('caregiver_shifts')
+      .insert({
+        care_circle_id: input.care_circle_id,
+        caregiver_id: input.caregiver_id,
+        date: shiftDate,
+        start_time: input.start_time,
+        end_time: input.end_time,
+        status: 'scheduled',
+      })
+      .select('*, caregiver:profiles(*)')
+      .single();
+
+    if (shiftError || !shiftData) {
+      throw new Error(shiftError ? shiftError.message : 'Failed to create shift');
+    }
+
+    let tasks: ShiftTask[] = [];
+    if (input.initial_tasks && input.initial_tasks.length > 0) {
+      const taskInserts = input.initial_tasks.map((title) => ({
+        shift_id: shiftData.id,
+        title: title.trim(),
+        completed: false,
+      }));
+
+      const { data: taskData } = await supabase
+        .from('shift_tasks')
+        .insert(taskInserts)
+        .select('*');
+      tasks = (taskData || []) as ShiftTask[];
+    }
+
+    return {
+      ...(shiftData as CaregiverShift),
+      tasks,
+    };
+  },
+
+  /**
+   * Phase 4: Delete a shift (Restricted to Admins via RLS)
+   */
+  async deleteShift(
+    shiftId: string,
+    circleId: string,
+    callerUserId: string
+  ): Promise<void> {
+    const members = !isSupabaseConfigured()
+      ? localMembers
+      : await this.fetchCircleMembers(circleId);
+
+    const callerMember = members.find(
+      (m) => m.care_circle_id === circleId && m.user_id === callerUserId
+    );
+
+    if (!callerMember || callerMember.role !== 'admin') {
+      throw new Error(
+        'Permission denied: Only Care Circle Admins can delete shifts (RLS policy violation).'
+      );
+    }
+
+    if (!isSupabaseConfigured()) {
+      localShifts = localShifts.filter((s) => s.id !== shiftId);
+      localShiftTasks = localShiftTasks.filter((t) => t.shift_id !== shiftId);
+      return;
+    }
+
+    const { error } = await supabase
+      .from('caregiver_shifts')
+      .delete()
+      .eq('id', shiftId)
+      .eq('care_circle_id', circleId);
+
+    if (error) throw new Error(error.message);
+  },
+
+  /**
+   * Phase 4: Toggle Shift Task Completion
+   * Enforced RLS: ONLY the assigned caregiver for that shift (or Admin) can edit checklist
+   */
+  async toggleShiftTask(
+    taskId: string,
+    completed: boolean,
+    shiftId: string,
+    callerUserId: string
+  ): Promise<ShiftTask> {
+    const shift = (!isSupabaseConfigured()
+      ? localShifts
+      : await this.fetchTodayShifts(SEED_CARE_CIRCLE.id)
+    ).find((s) => s.id === shiftId);
+
+    if (!shift) {
+      throw new Error('Shift not found.');
+    }
+
+    const members = !isSupabaseConfigured()
+      ? localMembers
+      : await this.fetchCircleMembers(shift.care_circle_id);
+
+    const callerMember = members.find(
+      (m) => m.care_circle_id === shift.care_circle_id && m.user_id === callerUserId
+    );
+
+    const isAdmin = callerMember?.role === 'admin';
+    const isAssignedCaregiver = shift.caregiver_id === callerUserId;
+
+    if (!isAdmin && !isAssignedCaregiver) {
+      throw new Error(
+        'Permission denied: Only the assigned caregiver can edit their shift checklist (RLS policy violation).'
+      );
+    }
+
+    const nowIso = new Date().toISOString();
+
+    if (!isSupabaseConfigured()) {
+      const task = localShiftTasks.find((t) => t.id === taskId);
+      if (!task) throw new Error('Task not found.');
+      task.completed = completed;
+      task.completed_at = completed ? nowIso : null;
+      task.completed_by = completed ? callerUserId : null;
+
+      // Update in localShifts tasks cache as well
+      const parentShift = localShifts.find((s) => s.id === shiftId);
+      if (parentShift?.tasks) {
+        const cached = parentShift.tasks.find((t) => t.id === taskId);
+        if (cached) {
+          cached.completed = completed;
+          cached.completed_at = completed ? nowIso : null;
+          cached.completed_by = completed ? callerUserId : null;
+        }
+      }
+
+      return { ...task };
+    }
+
+    const { data, error } = await supabase
+      .from('shift_tasks')
+      .update({
+        completed,
+        completed_at: completed ? nowIso : null,
+        completed_by: completed ? callerUserId : null,
+      })
+      .eq('id', taskId)
+      .select('*')
+      .single();
+
+    if (error || !data) {
+      throw new Error(error ? error.message : 'Failed to update shift task');
+    }
+
+    return data as ShiftTask;
+  },
+
+  /**
+   * Phase 4: Complete Shift Handoff
+   * At end of shift, caregiver writes note (or marks "nothing to report").
+   * Logs to timeline and immediately notifies next caregiver.
+   */
+  async completeShiftHandoff(
+    input: CompleteHandoffInput,
+    callerUserId: string
+  ): Promise<{
+    shift: CaregiverShift;
+    timelineEvent: TimelineEvent;
+    nextCaregiverNotified: boolean;
+  }> {
+    const shift = (!isSupabaseConfigured()
+      ? localShifts
+      : await this.fetchTodayShifts(SEED_CARE_CIRCLE.id)
+    ).find((s) => s.id === input.shift_id);
+
+    if (!shift) {
+      throw new Error('Shift not found.');
+    }
+
+    const members = !isSupabaseConfigured()
+      ? localMembers
+      : await this.fetchCircleMembers(shift.care_circle_id);
+
+    const callerMember = members.find(
+      (m) => m.care_circle_id === shift.care_circle_id && m.user_id === callerUserId
+    );
+
+    const isAdmin = callerMember?.role === 'admin';
+    const isAssignedCaregiver = shift.caregiver_id === callerUserId;
+
+    if (!isAdmin && !isAssignedCaregiver) {
+      throw new Error(
+        'Permission denied: Only the assigned caregiver can complete shift handoff (RLS policy violation).'
+      );
+    }
+
+    const handoffNote = input.nothing_to_report
+      ? 'Nothing to report - shift completed smoothly.'
+      : (input.handoff_note?.trim() || 'Shift completed.');
+
+    const nowIso = new Date().toISOString();
+
+    // Find next shift today
+    const shiftsToday = await this.fetchTodayShifts(shift.care_circle_id, shift.date);
+    const nextShift = shiftsToday.find(
+      (s) =>
+        s.id !== shift.id &&
+        s.status !== 'cancelled' &&
+        s.status !== 'completed' &&
+        s.start_time >= shift.end_time
+    );
+
+    const caregiver = SEED_PROFILES[shift.caregiver_id] || shift.caregiver || {
+      full_name: 'Caregiver',
+      id: shift.caregiver_id,
+    };
+    const caregiverFirstName = caregiver.full_name?.split(' ')[0] || 'Caregiver';
+
+    const nextCaregiver = nextShift?.caregiver_id
+      ? SEED_PROFILES[nextShift.caregiver_id] || nextShift.caregiver
+      : null;
+    const nextCaregiverFirstName = nextCaregiver?.full_name?.split(' ')[0] || 'Next Caregiver';
+
+    // Checklist stats
+    const tasks = !isSupabaseConfigured()
+      ? localShiftTasks.filter((t) => t.shift_id === shift.id)
+      : shift.tasks || [];
+    const completedTasksCount = tasks.filter((t) => t.completed).length;
+    const taskSummary =
+      tasks.length > 0 ? ` (${completedTasksCount}/${tasks.length} tasks completed)` : '';
+
+    // 1. Post Shift Handoff to Timeline
+    const title = `📋 Shift Handoff: ${caregiverFirstName} → ${nextCaregiverFirstName}`;
+    const description = `[${shift.start_time} - ${shift.end_time} Shift]${taskSummary}\nHandoff Note: "${handoffNote}"${
+      nextShift
+        ? `\nNext shift: ${nextShift.start_time} - ${nextShift.end_time} (${nextCaregiver?.full_name || 'Assigned Caregiver'})`
+        : '\nNo immediate next shift scheduled.'
+    }`;
+
+    const timelineEvent = await this.createTimelineEvent(
+      {
+        care_circle_id: shift.care_circle_id,
+        type: 'note',
+        title,
+        description,
+        occurred_at: nowIso,
+      },
+      callerUserId
+    );
+
+    // 2. Notify Next Caregiver via Push Alert
+    let nextCaregiverNotified = false;
+    if (nextShift) {
+      await notificationService.scheduleMissedCheckInAlert(
+        `📋 Shift Handoff from ${caregiverFirstName}`,
+        `${handoffNote}`,
+        1
+      );
+      nextCaregiverNotified = true;
+    }
+
+    // 3. Mark Shift as Completed
+    if (!isSupabaseConfigured()) {
+      shift.status = 'completed';
+      shift.handoff_note = handoffNote;
+      shift.handoff_completed_at = nowIso;
+      shift.handoff_nothing_to_report = !!input.nothing_to_report;
+      shift.updated_at = nowIso;
+
+      return {
+        shift: { ...shift },
+        timelineEvent,
+        nextCaregiverNotified,
+      };
+    }
+
+    const { data, error } = await supabase
+      .from('caregiver_shifts')
+      .update({
+        status: 'completed',
+        handoff_note: handoffNote,
+        handoff_completed_at: nowIso,
+        handoff_nothing_to_report: !!input.nothing_to_report,
+        updated_at: nowIso,
+      })
+      .eq('id', shift.id)
+      .select('*, caregiver:profiles(*)')
+      .single();
+
+    if (error || !data) {
+      throw new Error(error ? error.message : 'Failed to update shift status');
+    }
+
+    return {
+      shift: data as CaregiverShift,
+      timelineEvent,
+      nextCaregiverNotified,
+    };
   },
 };
 

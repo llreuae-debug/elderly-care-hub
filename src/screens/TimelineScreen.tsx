@@ -26,6 +26,7 @@ interface TimelineScreenProps {
   circle: CareCircle;
   currentUser: UserProfile;
   onNavigateToToday: () => void;
+  onNavigateToCoverage: () => void;
   onBackToCircles: () => void;
 }
 
@@ -33,6 +34,7 @@ export const TimelineScreen: React.FC<TimelineScreenProps> = ({
   circle,
   currentUser,
   onNavigateToToday,
+  onNavigateToCoverage,
   onBackToCircles,
 }) => {
   const [events, setEvents] = useState<TimelineEvent[]>([]);
@@ -124,7 +126,7 @@ export const TimelineScreen: React.FC<TimelineScreenProps> = ({
             <Text style={styles.backButtonText}>← Circles</Text>
           </TouchableOpacity>
 
-          {/* Tab Switcher: Today vs Timeline */}
+          {/* Tab Switcher: Today | Coverage | Timeline */}
           <View style={styles.tabSwitcher}>
             <TouchableOpacity
               onPress={onNavigateToToday}
@@ -133,6 +135,14 @@ export const TimelineScreen: React.FC<TimelineScreenProps> = ({
               accessibilityLabel="View Today Schedule"
             >
               <Text style={styles.tabTextInactive}>☀️ Today</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={onNavigateToCoverage}
+              style={styles.tabButton}
+              accessibilityRole="button"
+              accessibilityLabel="View Coverage"
+            >
+              <Text style={styles.tabTextInactive}>👥 Coverage</Text>
             </TouchableOpacity>
             <View style={[styles.tabButton, styles.tabButtonActive]}>
               <Text style={styles.tabTextActive}>📜 Timeline</Text>

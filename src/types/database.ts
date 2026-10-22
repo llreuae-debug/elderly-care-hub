@@ -116,3 +116,56 @@ export interface CreateCareCircleInput {
 export interface JoinCareCircleInput {
   invite_code: string;
 }
+
+// Phase 4: Caregiver Shifts, Checklists, & Handoffs
+export type ShiftStatus = 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
+
+export interface ShiftTask {
+  id: string;
+  shift_id: string;
+  title: string;
+  completed: boolean;
+  completed_at?: string | null;
+  completed_by?: string | null;
+  created_at: string;
+}
+
+export interface CaregiverShift {
+  id: string;
+  care_circle_id: string;
+  caregiver_id: string;
+  date: string; // YYYY-MM-DD
+  start_time: string; // e.g. "08:00"
+  end_time: string; // e.g. "14:00"
+  status: ShiftStatus;
+  handoff_note?: string | null;
+  handoff_completed_at?: string | null;
+  handoff_nothing_to_report?: boolean;
+  tasks?: ShiftTask[];
+  caregiver?: UserProfile | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateShiftInput {
+  care_circle_id: string;
+  caregiver_id: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  initial_tasks?: string[];
+}
+
+export interface CompleteHandoffInput {
+  shift_id: string;
+  handoff_note?: string;
+  nothing_to_report?: boolean;
+}
+
+export interface CoverageStatus {
+  currentShift: CaregiverShift | null;
+  nextShift: CaregiverShift | null;
+  hasCoverageGap: boolean;
+  gapMessage?: string;
+  allTodayShifts: CaregiverShift[];
+}

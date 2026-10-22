@@ -23,6 +23,8 @@ import {
 interface TodayScreenProps {
   circle: CareCircle;
   currentUser: UserProfile;
+  onNavigateToToday?: () => void;
+  onNavigateToCoverage: () => void;
   onNavigateToTimeline: () => void;
   onBackToCircles: () => void;
 }
@@ -30,6 +32,7 @@ interface TodayScreenProps {
 export const TodayScreen: React.FC<TodayScreenProps> = ({
   circle,
   currentUser,
+  onNavigateToCoverage,
   onNavigateToTimeline,
   onBackToCircles,
 }) => {
@@ -201,11 +204,19 @@ export const TodayScreen: React.FC<TodayScreenProps> = ({
             <Text style={styles.backButtonText}>← Circles</Text>
           </TouchableOpacity>
 
-          {/* Tab Switcher: Today vs Timeline */}
+          {/* Tab Switcher: Today | Coverage | Timeline */}
           <View style={styles.tabSwitcher}>
             <View style={[styles.tabButton, styles.tabButtonActive]}>
               <Text style={styles.tabTextActive}>☀️ Today</Text>
             </View>
+            <TouchableOpacity
+              onPress={onNavigateToCoverage}
+              style={styles.tabButton}
+              accessibilityRole="button"
+              accessibilityLabel="View Coverage"
+            >
+              <Text style={styles.tabTextInactive}>👥 Coverage</Text>
+            </TouchableOpacity>
             <TouchableOpacity
               onPress={onNavigateToTimeline}
               style={styles.tabButton}

@@ -1,9 +1,11 @@
 import {
   CareCircle,
   CareCircleMember,
+  CaregiverShift,
   DailyCheckIn,
   Medication,
   MedicationLog,
+  ShiftTask,
   TimelineEvent,
   UserProfile,
 } from '../types/database';
@@ -200,4 +202,74 @@ export const SEED_CHECK_INS: DailyCheckIn[] = [
     checker_profile: SEED_PROFILES['11111111-1111-1111-1111-111111111111'],
   },
 ];
+
+export const SEED_SHIFT_TASKS: ShiftTask[] = [
+  {
+    id: 'task-001',
+    shift_id: 'shift-001',
+    title: 'Morning blood pressure check (Target: < 130/85)',
+    completed: true,
+    completed_at: new Date(Date.now() - 3 * 3600000).toISOString(),
+    completed_by: '11111111-1111-1111-1111-111111111111',
+    created_at: new Date(Date.now() - 6 * 3600000).toISOString(),
+  },
+  {
+    id: 'task-002',
+    shift_id: 'shift-001',
+    title: 'Change knee surgical dressing & inspect healing',
+    completed: false,
+    created_at: new Date(Date.now() - 6 * 3600000).toISOString(),
+  },
+  {
+    id: 'task-003',
+    shift_id: 'shift-001',
+    title: 'Refill weekly pillbox with morning/evening doses',
+    completed: false,
+    created_at: new Date(Date.now() - 6 * 3600000).toISOString(),
+  },
+  {
+    id: 'task-004',
+    shift_id: 'shift-002',
+    title: 'Afternoon physical therapy walking exercises (15 mins)',
+    completed: false,
+    created_at: new Date(Date.now() - 6 * 3600000).toISOString(),
+  },
+  {
+    id: 'task-005',
+    shift_id: 'shift-002',
+    title: 'Evening vital signs & Metoprolol 25mg dose check',
+    completed: false,
+    created_at: new Date(Date.now() - 6 * 3600000).toISOString(),
+  },
+];
+
+export const SEED_SHIFTS: CaregiverShift[] = [
+  {
+    id: 'shift-001',
+    care_circle_id: SEED_CARE_CIRCLE.id,
+    caregiver_id: '11111111-1111-1111-1111-111111111111',
+    date: getTodayDateString(),
+    start_time: '08:00',
+    end_time: '14:00',
+    status: 'in_progress',
+    caregiver: SEED_PROFILES['11111111-1111-1111-1111-111111111111'],
+    tasks: SEED_SHIFT_TASKS.filter((t) => t.shift_id === 'shift-001'),
+    created_at: new Date(Date.now() - 24 * 3600000).toISOString(),
+    updated_at: new Date(Date.now() - 24 * 3600000).toISOString(),
+  },
+  {
+    id: 'shift-002',
+    care_circle_id: SEED_CARE_CIRCLE.id,
+    caregiver_id: '22222222-2222-2222-2222-222222222222',
+    date: getTodayDateString(),
+    start_time: '14:00',
+    end_time: '20:00',
+    status: 'scheduled',
+    caregiver: SEED_PROFILES['22222222-2222-2222-2222-222222222222'],
+    tasks: SEED_SHIFT_TASKS.filter((t) => t.shift_id === 'shift-002'),
+    created_at: new Date(Date.now() - 24 * 3600000).toISOString(),
+    updated_at: new Date(Date.now() - 24 * 3600000).toISOString(),
+  },
+];
+
 

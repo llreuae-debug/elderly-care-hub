@@ -7,6 +7,7 @@ import { AuthScreen } from './src/screens/AuthScreen';
 import { CircleSelectScreen } from './src/screens/CircleSelectScreen';
 import { ElderHomeScreen } from './src/screens/ElderHomeScreen';
 import { ElderLoginScreen } from './src/screens/ElderLoginScreen';
+import { CoverageScreen } from './src/screens/CoverageScreen';
 import { TimelineScreen } from './src/screens/TimelineScreen';
 import { TodayScreen } from './src/screens/TodayScreen';
 import { SEED_CARE_CIRCLE } from './src/services/mockData';
@@ -17,7 +18,7 @@ export default function App() {
   const [elderSession, setElderSession] = useState<ElderSession | null>(null);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [activeCircle, setActiveCircle] = useState<CareCircle | null>(null);
-  const [activeTab, setActiveTab] = useState<'today' | 'timeline'>('today');
+  const [activeTab, setActiveTab] = useState<'today' | 'coverage' | 'timeline'>('today');
 
   useEffect(() => {
     if (!isSupabaseConfigured()) {
@@ -121,6 +122,15 @@ export default function App() {
             <TodayScreen
               circle={activeCircle}
               currentUser={currentUser}
+              onNavigateToCoverage={() => setActiveTab('coverage')}
+              onNavigateToTimeline={() => setActiveTab('timeline')}
+              onBackToCircles={() => setActiveCircle(null)}
+            />
+          ) : activeTab === 'coverage' ? (
+            <CoverageScreen
+              circle={activeCircle}
+              currentUser={currentUser}
+              onNavigateToToday={() => setActiveTab('today')}
               onNavigateToTimeline={() => setActiveTab('timeline')}
               onBackToCircles={() => setActiveCircle(null)}
             />
@@ -129,6 +139,7 @@ export default function App() {
               circle={activeCircle}
               currentUser={currentUser}
               onNavigateToToday={() => setActiveTab('today')}
+              onNavigateToCoverage={() => setActiveTab('coverage')}
               onBackToCircles={() => setActiveCircle(null)}
             />
           )}

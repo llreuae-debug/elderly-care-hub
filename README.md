@@ -1,47 +1,44 @@
-# Elderly Care Hub — Phase 1, 2 & 3
+# Elderly Care Hub — Phases 1, 2, 3 & 4
 
 An accessible, dignity-first coordination hub for families and caregivers of elders.
 
 - **Phase 1**: Caregiver magic-link authentication, care circle management via 6-character invite codes, and a shared reverse-chronological timeline feed with realtime updates.
 - **Phase 2**: Medication reminders with interactive notifications, daily check-in ("I'm OK") workflow, automated missed check-in escalation (caregiver push alerts + Twilio SMS fallback), and the "Today" schedule view.
 - **Phase 3**: Simplified Elder Mode (3 large high-contrast buttons, minimum 24pt font, zero clutter), 4-digit PIN authentication (stored securely as SHA-256 hash in Supabase, no email required), and server-side Caregiver permissions enforcement (Admin vs Viewer Row Level Security policies).
+- **Phase 4**: Caregiver Shift Handoff, Task Checklists per Shift, and "Today's Coverage" view (Who is responsible right now, Who is next, and Coverage Gap warnings).
 
 ---
 
 ## 📱 Features Implemented
 
-### Phase 3 Additions
-1. **Simplified Elder Mode (Dignity & Accessibility First)**:
-   - Dedicated, uncluttered home screen designed specifically for elders with low tech literacy or visual impairments.
-   - **Font size: 24pt minimum** (32px) throughout the elder interface.
-   - **ONLY three large high-contrast touch buttons**:
-     - 🟩 **"I'm OK"** (Huge green button, min-height 120px): Tap once per day to log daily check-in.
-     - 🟥 **"Call for help"** (Huge red button, min-height 120px): Creates high-priority timeline event and immediately triggers push notifications + Twilio SMS to all circle admins.
-     - 🟦 **"My meds today"** (Huge blue button, min-height 120px): Opens a simplified read-only list showing today's medications with clear taken (✓) / pending (⏳) checkmarks.
-   - **Strict isolation**: Zero timeline feeds, zero settings, zero account management, zero navigation drawer clutter.
-   - Reversible "← Exit Elder Mode" footer option to return to caregiver login.
+### Phase 4 Additions
+1. **Caregiver Shift Model**:
+   - `caregiver_shifts` table: Caregiver ID, date, start time, end time, status (`scheduled`, `in_progress`, `completed`, `cancelled`), handoff note, and completion timestamps.
+   - Admin assigns shifts: Only circle admins can schedule, edit, or delete shifts.
+   - Seed shifts:
+     - Morning Shift: Sarah Vance (08:00 – 14:00)
+     - Afternoon Shift: Dr. Marcus Chen (14:00 – 20:00)
 
-2. **Elder 4-Digit PIN Authentication**:
-   - Elders log in using only a **4-digit PIN** and circle code (e.g. `CARE01` + PIN `1234`).
-   - **No email address or passwords required for the elder**.
-   - **Cryptographic Security**: Stored as a **SHA-256 hash** (`elder_pin_hash`) in Supabase Postgres, never in plaintext.
-   - Authenticated server-side via Supabase RPC function `verify_elder_pin(p_invite_code, p_pin_hash)`.
+2. **"Today's Coverage" View**:
+   - Dedicated coverage view in [src/screens/CoverageScreen.tsx](file:///Users/dilnawaz/Elderly%20Care%20Hub/src/screens/CoverageScreen.tsx).
+   - **Responsible Right Now**: Real-time badge and contact card showing which caregiver is on duty right now.
+   - **Who is Next**: Highlights the next upcoming caregiver shift.
+   - **Coverage Gap Warning**: Proactively calculates coverage gaps (e.g. unassigned intervals between shifts or when no caregiver is currently on duty) and displays an alert banner (`⚠️ Coverage gap between 14:00 and 16:00`).
 
-3. **Server-Side Caregiver Permissions Enforcement (Row Level Security)**:
-   - Enforced at the **database layer (PostgreSQL RLS)**, not just client-side UI hiding:
-     - 👑 **Admin (e.g., Sarah Vance - Primary Caregiver)**:
-       - Can invite and remove circle members.
-       - Can add, edit, and delete medications.
-       - Can change circle settings (check-in deadline time, primary caregiver phone).
-     - 👁️ **Viewer (e.g., Dr. Marcus Brody - Home Nurse)**:
-       - Can view timeline events, medications list, and check-in status.
-       - **Strictly blocked** from creating/editing medications, modifying settings, or removing members. Direct API attempts receive a permission denied RLS error.
+3. **Task Checklist per Shift (Shift-Specific Isolation)**:
+   - `shift_tasks` table: Shift ID, title, completed, completed_at, completed_by.
+   - Tasks belong strictly to their specific shift and **do not persist beyond the shift**.
+   - Checkable items: e.g. "Change knee surgical dressing & inspect healing", "Refill weekly pillbox", "Afternoon physical therapy exercises".
+   - **Row Level Security (RLS)**: ONLY the assigned caregiver for that specific shift (or circle admin) can edit their checklist tasks. Other circle members have read-only visibility.
 
-4. **"Call for help" High-Priority Escalation**:
-   - Tapping "Call for help" in Elder Mode:
-     1. Creates a high-priority timeline event (`🚨 EMERGENCY: Eleanor called for help!`).
-     2. Dispatches an immediate high-priority push alert to all circle members.
-     3. Invokes the Supabase Edge Function to send an immediate Twilio SMS to all circle admins (`+15551234567`).
+4. **Shift Handoff Flow**:
+   - At shift end, caregiver clicks **"📋 End Shift & Write Handoff Note"**.
+   - Caregivers can enter detailed handoff notes (or tap quick **"Mark: Nothing to report"**).
+   - On completion:
+     1. Shift marks as **COMPLETED**.
+     2. Posts an immediate handoff event to the timeline: `📋 Shift Handoff: Sarah → Dr. Marcus`.
+     3. Automatically notifies the incoming caregiver via push notification alert.
+     4. Incoming caregiver sees the handoff note immediately upon opening the app.
 
 ---
 
@@ -53,7 +50,7 @@ An accessible, dignity-first coordination hub for families and caregivers of eld
 - **Notifications**: `expo-notifications` for interactive local push alerts.
 - **SMS Fallback**: Twilio REST API via Supabase Edge Functions.
 - **Language**: TypeScript strict mode (`noImplicitAny`, strict null checks, zero `any`).
-- **Tests**: Jest integration test suite (5 suites, 37 passing integration tests).
+- **Tests**: Jest integration test suite (6 suites, 50 passing integration tests).
 
 ---
 
@@ -69,11 +66,8 @@ Apply migrations in order in the Supabase SQL Editor or CLI:
 1. `supabase/migrations/20261023000001_initial_schema.sql` (Phase 1)
 2. `supabase/migrations/20261023000002_phase2_meds_and_checkins.sql` (Phase 2)
 3. `supabase/migrations/20261023000003_phase3_elder_pin_and_permissions.sql` (Phase 3)
-4. `supabase/seed.sql`
-
-Seed Elder Credentials:
-- **Care Circle Code**: `CARE01`
-- **Elder PIN**: `1234` (Stored hash: `03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4`)
+4. `supabase/migrations/20261023000004_phase4_shifts_and_handoffs.sql` (Phase 4)
+5. `supabase/seed.sql`
 
 ---
 
@@ -84,15 +78,17 @@ Run the full integration test suite:
 npm test
 ```
 
-**37 passing integration tests across 5 test suites**:
+**50 passing integration tests across 6 test suites**:
 - `auth.integration.test.ts`: Caregiver magic-link auth and persona handling.
 - `careCircle.integration.test.ts`: Care circle creation, invite codes, and memberships.
 - `timeline.integration.test.ts`: Reverse-chronological feed, filtering, notes, and realtime events.
 - `medicationAndCheckin.integration.test.ts`: Medication schedules, 2m reminders, daily check-in, push and SMS escalation.
-- `elderModeAndPermissions.integration.test.ts`:
-  - 4-digit PIN SHA-256 hashing and login validation.
-  - Elder Mode 3 buttons ("I'm OK", "Call for help", "My meds today").
-  - Server-side RLS permission checks: Admin permitted to mutate meds/settings/members; Viewer denied on all mutations.
+- `elderModeAndPermissions.integration.test.ts`: 4-digit PIN hashing, 3-button elder mode, Call for help, and caregiver permission enforcement.
+- `shiftHandoff.integration.test.ts`:
+  - Shift creation and Admin assignment permissions (RLS enforcement).
+  - Coverage calculation (responsible right now, who is next, coverage gap warnings).
+  - Shift-specific checklist tasks and assigned-caregiver editing isolation.
+  - End-shift handoff flow with handoff note, timeline logging, and immediate incoming caregiver notification.
 
 Run strict TypeScript typecheck:
 ```bash
@@ -113,34 +109,22 @@ Opens at `http://localhost:8081`.
 ```bash
 npm start
 ```
-Scan the QR code with your iPhone Camera or Android Expo Go app.
 
 ---
 
-## 🔬 How to Verify Phase 3 Deliverables
+## 🔬 How to Verify Phase 4 Deliverables
 
-### 1. Test Elder Mode & 4-Digit PIN Auth
-1. Launch the app (`http://localhost:8081`).
-2. On the login screen, click **"👵 Switch to Elder Mode (4-Digit PIN)"**.
-3. Use the large keypad to enter PIN **`1234`** and click **"👵 Log In to Elder Mode"**.
-4. **Confirm Elder Mode Screen**:
-   - Exactly **three large buttons** appear:
-     - 🟩 **"I'm OK"**
-     - 🟥 **"Call for help"**
-     - 🟦 **"My meds today"**
-   - Font size is 24pt minimum (32px).
-   - No timeline, no settings, no account management.
-5. Tap **"I'm OK"** → verifies check-in is recorded.
-6. Tap **"My meds today"** → displays read-only list with doses and taken checkmarks.
-7. Tap **"🚨 Call for help"** → triggers emergency confirmation banner simulating immediate Push + Twilio SMS to admins.
-
-### 2. Verify Caregiver Permissions Enforcement (Admin vs Viewer)
-1. Tap **"← Exit Elder Mode"** to return to caregiver mode.
-2. Click **"Dr. Marcus Brody (Viewer)"** quick demo login.
-3. Observe that Dr. Marcus is in Read-Only Viewer mode:
-   - Can read timeline and check-in status.
-   - Medication editing and circle settings modifications are disabled in UI and rejected server-side by Supabase RLS.
-4. Run `npm test` to verify the automated RLS policy test suite:
-   ```bash
-   npm test __tests__/elderModeAndPermissions.integration.test.ts
-   ```
+1. Open `http://localhost:8081` in your browser.
+2. Click **"Sarah Vance (Primary Admin)"**.
+3. Tap the **"👥 Coverage"** tab in the header.
+4. **Inspect Coverage View**:
+   - Verify **"RESPONSIBLE RIGHT NOW"** shows Sarah Vance (08:00 – 14:00).
+   - Verify **"WHO IS NEXT"** shows Dr. Marcus Chen (14:00 – 20:00).
+   - Observe the back-to-back shifts and task checklists.
+5. On Sarah's shift, check off a checklist item (e.g. *"Change knee surgical dressing & inspect healing"*).
+6. Tap **"📋 End Shift & Write Handoff Note"**.
+7. Enter a handoff note (e.g. *"Eleanor took morning meds and had tea. Knee dressing replaced and clean. Ready for afternoon PT."*) and click **"✓ Complete Handoff"**.
+8. Notice Sarah's shift now displays **"✓ COMPLETED"** with the handoff note.
+9. Click **"← Circles"** → **"Sign Out"**, then log in as the incoming caregiver: **"Dr. Marcus Brody (Viewer)"**.
+10. Click **"📜 Timeline"**: Confirm the Shift Handoff event (`📋 Shift Handoff: Sarah → Dr. Marcus`) is visible at the very top of the feed with the full handoff note.
+11. Click **"👥 Coverage"**: Confirm Marcus sees Sarah's completed shift and his own upcoming shift.

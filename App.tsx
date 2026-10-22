@@ -1,0 +1,111 @@
+import { StatusBar } from 'expo-status-bar';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { isSupabaseConfigured, supabase } from './src/lib/supabase';
+import { AuthScreen } from './src/screens/AuthScreen';
+import { CircleSelectScreen } from './src/screens/CircleSelectScreen';
+import { TimelineScreen } from './src/screens/TimelineScreen';
+import { SEED_CARE_CIRCLE, SEED_PROFILES } from './src/services/mockData';
+import { CareCircle, UserProfile } from './src/types/database';
+
+export default function App() {
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [activeCircle, setActiveCircle] = useState<CareCircle | null>(null);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured()) {
+      return;
+    }
+
+    // Supabase auth listener
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (session?.user) {
+          try {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', session.user.id)
+              .single();
+
+            if (profile) {
+              setCurrentUser(profile as UserProfile);
+            } else {
+              setCurrentUser({
+                id: session.user.id,
+                email: session.user.email || '',
+                full_name:
+                  session.user.user_metadata?.full_name ||
+                  session.user.email?.split('@')[0] ||
+                  'Caregiver',
+                avatar_url: null,
+                created_at: session.user.created_at,
+              });
+            }
+          } catch {
+            // Profile fetch optional fallback
+          }
+        } else if (event === 'SIGNED_OUT') {
+          setCurrentUser(null);
+          setActiveCircle(null);
+        }
+      }
+    );
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
+
+  const handleAuthenticated = (user: UserProfile) => {
+    setCurrentUser(user);
+    // If logging in as one of the seed users, automatically connect to the seed circle
+    if (user.id === '11111111-1111-1111-1111-111111111111' || user.id === '22222222-2222-2222-2222-222222222222') {
+      setActiveCircle(SEED_CARE_CIRCLE);
+    }
+  };
+
+  const handleSignOut = async () => {
+    if (isSupabaseConfigured()) {
+      await supabase.auth.signOut();
+    }
+    setCurrentUser(null);
+    setActiveCircle(null);
+  };
+
+  return (
+    <SafeAreaProvider>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom', 'left', 'right']}>
+        <StatusBar style="dark" />
+        <View style={styles.container}>
+          {!currentUser ? (
+            <AuthScreen onAuthenticated={handleAuthenticated} />
+          ) : !activeCircle ? (
+            <CircleSelectScreen
+              currentUser={currentUser}
+              onSelectCircle={setActiveCircle}
+              onSignOut={handleSignOut}
+            />
+          ) : (
+            <TimelineScreen
+              circle={activeCircle}
+              currentUser={currentUser}
+              onBackToCircles={() => setActiveCircle(null)}
+            />
+          )}
+        </View>
+      </SafeAreaView>
+    </SafeAreaProvider>
+  );
+}
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+  },
+  container: {
+    flex: 1,
+  },
+});

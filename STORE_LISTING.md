@@ -47,9 +47,16 @@ Unlike surveillance-style monitoring tools that strip elders of autonomy, Elderl
 elderly care, senior care, caregiver coordinator, medication reminder, shift handoff, daily check in, family health, elder dignity, home nursing, aging parents
 
 ## Support & Privacy
-- **Support URL**: https://elderlycarehub.example.com/support
-- **Marketing URL**: https://elderlycarehub.example.com
+- **Support URL**: https://elderly-care-hub.vercel.app
+- **Marketing URL**: https://elderly-care-hub.vercel.app
+- **Privacy Policy URL**: https://elderly-care-hub.vercel.app
 - **Privacy Policy Summary**: Elderly Care Hub collects only essential coordination data (caregiver emails, elder first names, and medication schedules). We never sell user data, track location without consent, or install surveillance trackers. All elder PINs are securely stored using irreversible SHA-256 cryptographic hashing.
+
+## App Review Information (for App Store Connect Review Notes)
+- **Sign-in Required**: Yes
+- **Caregiver Account**: Tap "Explore with Sarah (Admin)" on the initial sign-in screen, or use email `sarah@example.com` (passwordless).
+- **Elder Mode (3-Button Screen)**: Tap "Switch to Elder Mode" at the bottom of the sign-in screen, enter Circle Code `CARE01` and 4-digit PIN `1234`.
+- **Review Notes**: Elderly Care Hub is a multi-caregiver coordination platform for families and home health aides. Account sign-in is required to secure medical schedules and private caregiver handoffs. Push notifications are used for time-sensitive medication reminders and missed check-in alerts.
 
 ## Version 1.0.0 Release Notes
 Welcome to Elderly Care Hub!

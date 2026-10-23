@@ -115,10 +115,10 @@ describe('Audit: Links, Navigation, Routes & Assets Verification', () => {
 
   describe('Category 3: External Links (Privacy, Terms, Support)', () => {
     it('defines valid external URLs matching App Store metadata', () => {
-      expect(EXTERNAL_URLS.PRIVACY_POLICY).toBe('https://elderlycarehub.example.com/privacy');
-      expect(EXTERNAL_URLS.TERMS_OF_SERVICE).toBe('https://elderlycarehub.example.com/terms');
-      expect(EXTERNAL_URLS.SUPPORT).toBe('https://elderlycarehub.example.com/support');
-      expect(EXTERNAL_URLS.WEBSITE).toBe('https://elderlycarehub.example.com');
+      expect(EXTERNAL_URLS.PRIVACY_POLICY).toBe('https://elderly-care-hub.vercel.app');
+      expect(EXTERNAL_URLS.TERMS_OF_SERVICE).toBe('https://elderly-care-hub.vercel.app');
+      expect(EXTERNAL_URLS.SUPPORT).toBe('https://elderly-care-hub.vercel.app');
+      expect(EXTERNAL_URLS.WEBSITE).toBe('https://elderly-care-hub.vercel.app');
     });
 
     it('invokes Linking.openURL when URL is supported', async () => {
@@ -201,9 +201,9 @@ describe('Audit: Links, Navigation, Routes & Assets Verification', () => {
       const invite = formatInviteMessage('Eleanor Vance Circle', 'CARE01');
       expect(invite.code).toBe('CARE01');
       expect(invite.deepLinkUrl).toBe('elderlycare://circle/join/CARE01');
-      expect(invite.webLinkUrl).toBe('https://elderlycarehub.example.com/join/CARE01');
-      expect(invite.sms).toContain('https://elderlycarehub.example.com/join/CARE01');
-      expect(invite.emailBody).toContain('https://elderlycarehub.example.com/join/CARE01');
+      expect(invite.webLinkUrl).toBe('https://elderly-care-hub.vercel.app/join/CARE01');
+      expect(invite.sms).toContain('https://elderly-care-hub.vercel.app/join/CARE01');
+      expect(invite.emailBody).toContain('https://elderly-care-hub.vercel.app/join/CARE01');
     });
 
     it('formats missed check-in SMS with actionable check-in link and deep link', () => {
@@ -212,9 +212,9 @@ describe('Audit: Links, Navigation, Routes & Assets Verification', () => {
         '10:00',
         'circle-1'
       );
-      expect(alert.checkInUrl).toBe('https://elderlycarehub.example.com/checkin?circle=circle-1');
+      expect(alert.checkInUrl).toBe('https://elderly-care-hub.vercel.app/checkin?circle=circle-1');
       expect(alert.deepLinkUrl).toBe('elderlycare://today');
-      expect(alert.sms).toContain('https://elderlycarehub.example.com/checkin?circle=circle-1');
+      expect(alert.sms).toContain('https://elderly-care-hub.vercel.app/checkin?circle=circle-1');
       expect(alert.sms).toContain('elderlycare://today');
     });
 
@@ -224,7 +224,7 @@ describe('Audit: Links, Navigation, Routes & Assets Verification', () => {
         'Eleanor Care Circle',
         'Vitals normal, resting comfortably.'
       );
-      expect(handoff.coverageUrl).toBe('https://elderlycarehub.example.com/coverage');
+      expect(handoff.coverageUrl).toBe('https://elderly-care-hub.vercel.app/coverage');
       expect(handoff.deepLinkUrl).toBe('elderlycare://coverage');
     });
   });

@@ -1,10 +1,10 @@
 import { Alert, Linking } from 'react-native';
 
 export const EXTERNAL_URLS = {
-  PRIVACY_POLICY: 'https://elderlycarehub.example.com/privacy',
-  TERMS_OF_SERVICE: 'https://elderlycarehub.example.com/terms',
-  SUPPORT: 'https://elderlycarehub.example.com/support',
-  WEBSITE: 'https://elderlycarehub.example.com',
+  PRIVACY_POLICY: 'https://elderly-care-hub.vercel.app',
+  TERMS_OF_SERVICE: 'https://elderly-care-hub.vercel.app',
+  SUPPORT: 'https://elderly-care-hub.vercel.app',
+  WEBSITE: 'https://elderly-care-hub.vercel.app',
 };
 
 export type DeepLinkIntent =
@@ -42,7 +42,7 @@ export function parseDeepLink(rawUrl: string): DeepLinkIntent {
 
   // 1. Supabase Auth Magic Link callback:
   // e.g. elderlycare://auth/callback#access_token=abc&refresh_token=xyz
-  // or https://elderlycarehub.example.com/auth/callback#access_token=abc
+  // or https://elderly-care-hub.vercel.app/auth/callback#access_token=abc
   if (url.includes('auth/callback') || url.includes('callback#') || url.includes('#access_token=')) {
     const hashIndex = url.indexOf('#');
     const queryIndex = url.indexOf('?');
@@ -148,7 +148,7 @@ export async function openExternalUrl(url: string, linkTitle?: string): Promise<
 export function formatInviteMessage(circleName: string, inviteCode: string) {
   const code = inviteCode.trim().toUpperCase();
   const deepLinkUrl = `elderlycare://circle/join/${code}`;
-  const webLinkUrl = `https://elderlycarehub.example.com/join/${code}`;
+  const webLinkUrl = `https://elderly-care-hub.vercel.app/join/${code}`;
 
   return {
     code,
@@ -168,7 +168,7 @@ export function formatMissedCheckInAlertMessage(
   deadline: string,
   circleId: string
 ) {
-  const checkInUrl = `https://elderlycarehub.example.com/checkin?circle=${encodeURIComponent(circleId)}`;
+  const checkInUrl = `https://elderly-care-hub.vercel.app/checkin?circle=${encodeURIComponent(circleId)}`;
   const deepLinkUrl = `elderlycare://today`;
 
   return {
@@ -183,7 +183,7 @@ export function formatMissedCheckInAlertMessage(
  * Format Shift Handoff Alert
  */
 export function formatHandoffAlertMessage(fromCaregiver: string, circleName: string, handoffNote: string) {
-  const coverageUrl = `https://elderlycarehub.example.com/coverage`;
+  const coverageUrl = `https://elderly-care-hub.vercel.app/coverage`;
   const deepLinkUrl = `elderlycare://coverage`;
 
   return {

@@ -155,6 +155,24 @@ export const CoverageScreen: React.FC<CoverageScreenProps> = ({
     }
   };
 
+  const handleReportHandoff = (shift: CaregiverShift) => {
+    Alert.alert(
+      'Report Handoff Note',
+      'Would you like to report this shift handoff note to our moderation team? We review reports within 24 hours. For urgent safety concerns, contact support@elderlycarehub.com.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Submit Report',
+          style: 'destructive',
+          onPress: () => {
+            const res = careCircleService.reportContent(shift.id, 'handoff_note_report', currentUser.id);
+            Alert.alert('Report Received', res.message);
+          },
+        },
+      ]
+    );
+  };
+
   const handleCreateShift = async () => {
     if (!newStartTime.trim() || !newEndTime.trim()) {
       Alert.alert('Error', 'Please enter valid start and end times.');
@@ -501,9 +519,18 @@ export const CoverageScreen: React.FC<CoverageScreenProps> = ({
                   {/* Handoff Note Section / Action Button */}
                   {isCompleted ? (
                     <View style={styles.handoffCompletedBox}>
-                      <Text style={styles.handoffCompletedHeader}>
-                        📋 Handoff Note
-                      </Text>
+                      <View style={styles.handoffCompletedHeaderRow}>
+                        <Text style={styles.handoffCompletedHeader}>
+                          📋 Handoff Note
+                        </Text>
+                        <TouchableOpacity
+                          onPress={() => handleReportHandoff(shift)}
+                          accessibilityRole="button"
+                          accessibilityLabel="Report handoff note"
+                        >
+                          <Text style={styles.reportHandoffText}>🚩 Report</Text>
+                        </TouchableOpacity>
+                      </View>
                       <Text style={styles.handoffCompletedText}>
                         "{shift.handoff_note || 'Shift completed smoothly.'}"
                       </Text>
@@ -1176,11 +1203,21 @@ const styles = StyleSheet.create({
     borderLeftWidth: 4,
     borderLeftColor: '#0E7490',
   },
+  handoffCompletedHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
   handoffCompletedHeader: {
     fontSize: 12,
     fontWeight: '700',
     color: '#0E7490',
-    marginBottom: 4,
+  },
+  reportHandoffText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#DC2626',
   },
   handoffCompletedText: {
     fontSize: 14,

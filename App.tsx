@@ -203,59 +203,61 @@ export default function App() {
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom', 'left', 'right']}>
           <StatusBar style="dark" />
 
-          {/* Top Airplane / Offline Mode Toolbar */}
-          <View style={styles.networkToolbar}>
-            <View style={styles.networkStatusLeft}>
-              <View
-                style={[
-                  styles.networkStatusDot,
-                  isOffline ? styles.dotOffline : styles.dotOnline,
-                ]}
-              />
-              <Text style={styles.networkStatusText}>
-                {isOffline ? '✈️ Airplane Mode (Offline)' : '🟢 Online'}
-              </Text>
-            </View>
-
-            <View style={styles.networkToolbarRight}>
-              <TouchableOpacity
-                onPress={() => setShowMetrics(true)}
-                style={styles.tutorialButton}
-                accessibilityRole="button"
-                accessibilityLabel="Business Metrics"
-              >
-                <Text style={styles.tutorialButtonText}>📊 Metrics</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => setShowOnboarding(true)}
-                style={styles.tutorialButton}
-                accessibilityRole="button"
-                accessibilityLabel="Tutorial"
-              >
-                <Text style={styles.tutorialButtonText}>ℹ️ Tutorial</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={handleToggleAirplaneMode}
-                style={[
-                  styles.airplaneToggleButton,
-                  isOffline ? styles.airplaneToggleActive : null,
-                ]}
-                accessibilityRole="button"
-                accessibilityLabel="Toggle Airplane Mode"
-              >
-                <Text
+          {/* Top Airplane / Offline Mode Toolbar (Development only) */}
+          {typeof __DEV__ !== 'undefined' && __DEV__ ? (
+            <View style={styles.networkToolbar}>
+              <View style={styles.networkStatusLeft}>
+                <View
                   style={[
-                    styles.airplaneToggleText,
-                    isOffline ? styles.airplaneToggleTextActive : null,
+                    styles.networkStatusDot,
+                    isOffline ? styles.dotOffline : styles.dotOnline,
                   ]}
-                >
-                  {isOffline ? 'Turn Off Airplane' : '✈️ Airplane Mode'}
+                />
+                <Text style={styles.networkStatusText}>
+                  {isOffline ? '✈️ Airplane Mode (Offline)' : '🟢 Online'}
                 </Text>
-              </TouchableOpacity>
+              </View>
+
+              <View style={styles.networkToolbarRight}>
+                <TouchableOpacity
+                  onPress={() => setShowMetrics(true)}
+                  style={styles.tutorialButton}
+                  accessibilityRole="button"
+                  accessibilityLabel="Business Metrics"
+                >
+                  <Text style={styles.tutorialButtonText}>📊 Metrics</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => setShowOnboarding(true)}
+                  style={styles.tutorialButton}
+                  accessibilityRole="button"
+                  accessibilityLabel="Tutorial"
+                >
+                  <Text style={styles.tutorialButtonText}>ℹ️ Tutorial</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={handleToggleAirplaneMode}
+                  style={[
+                    styles.airplaneToggleButton,
+                    isOffline ? styles.airplaneToggleActive : null,
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Toggle Airplane Mode"
+                >
+                  <Text
+                    style={[
+                      styles.airplaneToggleText,
+                      isOffline ? styles.airplaneToggleTextActive : null,
+                    ]}
+                  >
+                    {isOffline ? 'Turn Off Airplane' : '✈️ Airplane Mode'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
+          ) : null}
 
           {/* Offline Warning Banner */}
           {isOffline ? (

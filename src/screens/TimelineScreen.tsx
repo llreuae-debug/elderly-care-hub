@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Modal,
   RefreshControl,
@@ -45,6 +46,7 @@ export const TimelineScreen: React.FC<TimelineScreenProps> = ({
   const [selectedFilter, setSelectedFilter] = useState<FilterOption>('all');
   const [showAddModal, setShowAddModal] = useState(false);
   const [copiedCodeBanner, setCopiedCodeBanner] = useState(false);
+  const [blockedUsers, setBlockedUsers] = useState<string[]>(careCircleService.getBlockedUserIds());
 
   // Load events & members
   const loadData = useCallback(async () => {
@@ -102,17 +104,32 @@ export const TimelineScreen: React.FC<TimelineScreenProps> = ({
     }, 2500);
   };
 
-  // Filter events
-  const filteredEvents = events.filter((ev) => {
+  const handleReportEvent = (event: TimelineEvent) => {
+    const res = careCircleService.reportContent(event.id, 'user_flagged', currentUser.id);
+    Alert.alert('Report Received', res.message);
+  };
+
+  const handleBlockUser = (userId: string, userName: string) => {
+    careCircleService.blockUser(userId);
+    setBlockedUsers(careCircleService.getBlockedUserIds());
+    Alert.alert(
+      'Caregiver Blocked',
+      `${userName} has been blocked and their updates are now hidden from your timeline.`
+    );
+  };
+
+  // Filter events (excluding blocked caregivers)
+  const unblockedEvents = events.filter((e) => !blockedUsers.includes(e.created_by));
+  const filteredEvents = unblockedEvents.filter((ev) => {
     if (selectedFilter === 'all') return true;
     return ev.type === selectedFilter;
   });
 
   const counts = {
-    all: events.length,
-    note: events.filter((e) => e.type === 'note').length,
-    med: events.filter((e) => e.type === 'med').length,
-    appointment: events.filter((e) => e.type === 'appointment').length,
+    all: unblockedEvents.length,
+    note: unblockedEvents.filter((e) => e.type === 'note').length,
+    med: unblockedEvents.filter((e) => e.type === 'med').length,
+    appointment: unblockedEvents.filter((e) => e.type === 'appointment').length,
   };
 
   const currentMember = members.find((m) => m.user_id === currentUser.id);
@@ -210,7 +227,14 @@ export const TimelineScreen: React.FC<TimelineScreenProps> = ({
         <FlatList
           data={filteredEvents}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <TimelineCard event={item} />}
+          renderItem={({ item }) => (
+            <TimelineCard
+              event={item}
+              currentUserId={currentUser.id}
+              onReport={handleReportEvent}
+              onBlockUser={handleBlockUser}
+            />
+          )}
           contentContainerStyle={styles.listContent}
           refreshControl={
             <RefreshControl

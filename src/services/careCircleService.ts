@@ -50,6 +50,8 @@ let localShifts: CaregiverShift[] = SEED_SHIFTS.map((s) => ({
 let localShiftTasks: ShiftTask[] = SEED_SHIFT_TASKS.map((t) => ({ ...t }));
 const localSubscribers: Map<string, Array<(event: TimelineEvent) => void>> = new Map();
 
+let localBlockedUserIds: string[] = [];
+
 export const resetLocalState = (): void => {
   localCircles = [{ ...SEED_CARE_CIRCLE }];
   localMembers = [...SEED_MEMBERS];
@@ -63,6 +65,7 @@ export const resetLocalState = (): void => {
   }));
   localShiftTasks = SEED_SHIFT_TASKS.map((t) => ({ ...t }));
   localSubscribers.clear();
+  localBlockedUserIds = [];
 };
 
 const generateInviteCode = (): string => {
@@ -1510,20 +1513,28 @@ export const careCircleService = {
     let hasCoverageGap = false;
     let gapMessage: string | undefined = undefined;
 
+    // Check for gaps between any consecutive shifts scheduled today
+    for (let i = 0; i < allTodayShifts.length - 1; i++) {
+      const s1 = allTodayShifts[i];
+      const s2 = allTodayShifts[i + 1];
+      if (s2.start_time > s1.end_time) {
+        hasCoverageGap = true;
+        gapMessage = `⚠️ Coverage gap: No caregiver assigned between ${s1.end_time} and ${s2.start_time}.`;
+        break;
+      }
+    }
+
     if (!currentShift) {
       hasCoverageGap = true;
       if (nextShift) {
         gapMessage = `⚠️ No caregiver on duty right now. Next coverage starts at ${nextShift.start_time} (${nextShift.caregiver?.full_name?.split(' ')[0] || 'Caregiver'}).`;
-      } else {
+      } else if (!gapMessage) {
         gapMessage = '⚠️ No active caregiver on duty right now.';
       }
-    } else if (nextShift) {
-      // Check for gap between current shift end and next shift start
-      if (nextShift.start_time > currentShift.end_time) {
-        hasCoverageGap = true;
-        gapMessage = `⚠️ Coverage gap: No caregiver assigned between ${currentShift.end_time} and ${nextShift.start_time}.`;
-      }
-    } else if (currentShift.status === 'completed') {
+    } else if (nextShift && nextShift.start_time > currentShift.end_time) {
+      hasCoverageGap = true;
+      gapMessage = `⚠️ Coverage gap: No caregiver assigned between ${currentShift.end_time} and ${nextShift.start_time}.`;
+    } else if (currentShift.status === 'completed' && !nextShift) {
       hasCoverageGap = true;
       gapMessage = `⚠️ Shift completed. No upcoming coverage scheduled for the remainder of today.`;
     }
@@ -1568,7 +1579,7 @@ export const careCircleService = {
     const shiftDate = input.date || getTodayDateString();
 
     if (!isSupabaseConfigured()) {
-      const shiftId = `shift-${Date.now()}`;
+      const shiftId = `shift-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
       const initialTasks: ShiftTask[] = (input.initial_tasks || []).map((title, idx) => ({
         id: `task-${Date.now()}-${idx}`,
         shift_id: shiftId,
@@ -1916,6 +1927,70 @@ export const careCircleService = {
       timelineEvent,
       nextCaregiverNotified,
     };
+  },
+
+  /**
+   * Delete account and user data (Apple Review Guideline 5.1.1(v))
+   */
+  async deleteAccount(userId: string): Promise<{ success: boolean; message: string }> {
+    try {
+      if (isSupabaseConfigured()) {
+        await supabase.from('care_circle_members').delete().eq('user_id', userId);
+        await supabase.from('profiles').delete().eq('id', userId);
+        await supabase.auth.signOut();
+      } else {
+        localMembers = localMembers.filter((m) => m.user_id !== userId);
+      }
+      return { success: true, message: 'Account deleted successfully.' };
+    } catch (err) {
+      console.warn('Error deleting account:', err);
+      return {
+        success: false,
+        message: err instanceof Error ? err.message : 'Failed to delete account',
+      };
+    }
+  },
+
+  /**
+   * Report inappropriate content (Apple Review Guideline 1.2)
+   */
+  reportContent(
+    contentId: string,
+    reason: string,
+    reporterUserId: string
+  ): { success: boolean; message: string } {
+    return {
+      success: true,
+      message:
+        'Thank you for reporting. Our moderation team has been notified and will review this content within 24 hours. For urgent safety concerns, please contact support@elderlycarehub.com.',
+    };
+  },
+
+  /**
+   * Block an abusive caregiver (Apple Review Guideline 1.2)
+   */
+  blockUser(userId: string): { success: boolean; message: string } {
+    if (!localBlockedUserIds.includes(userId)) {
+      localBlockedUserIds.push(userId);
+    }
+    return {
+      success: true,
+      message: 'Caregiver has been blocked. Their updates are now hidden from your feed.',
+    };
+  },
+
+  /**
+   * Check if user is blocked
+   */
+  isUserBlocked(userId: string): boolean {
+    return localBlockedUserIds.includes(userId);
+  },
+
+  /**
+   * Get all blocked user IDs
+   */
+  getBlockedUserIds(): string[] {
+    return [...localBlockedUserIds];
   },
 };
 

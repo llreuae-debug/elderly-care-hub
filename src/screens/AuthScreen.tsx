@@ -133,22 +133,22 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
           />
         </View>
 
-        {/* Quick Testing Personas */}
+        {/* Explore Caregiver Demo Profiles */}
         <View style={styles.demoSection}>
-          <Text style={styles.demoHeader}>Quick Demo Logins (Seed Data)</Text>
+          <Text style={styles.demoHeader}>Explore with Demo Caregiver Profile</Text>
           <Text style={styles.demoSub}>
-            Tap to test instantly as one of the seed caregivers:
+            Select a sample profile to preview caregiver coordination features:
           </Text>
 
           <Button
-            title="👤 Log in as Sarah (Daughter / Admin)"
+            title="👤 Explore as Sarah (Family Admin)"
             variant="secondary"
             onPress={() => handleSelectSeedUser('11111111-1111-1111-1111-111111111111')}
             style={styles.demoButton}
           />
 
           <Button
-            title="🩺 Log in as Dr. Marcus (Home Nurse / Viewer)"
+            title="🩺 Explore as Dr. Marcus (Nurse / Viewer)"
             variant="secondary"
             onPress={() => handleSelectSeedUser('22222222-2222-2222-2222-222222222222')}
             style={styles.demoButton}

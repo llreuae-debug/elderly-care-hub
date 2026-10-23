@@ -1,9 +1,12 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { TimelineEvent, TimelineEventType } from '../types/database';
 
 interface TimelineCardProps {
   event: TimelineEvent;
+  currentUserId?: string;
+  onReport?: (event: TimelineEvent) => void;
+  onBlockUser?: (userId: string, userName: string) => void;
 }
 
 const getBadgeConfig = (type: TimelineEventType) => {
@@ -59,10 +62,64 @@ const formatRelativeTime = (isoString: string): string => {
   });
 };
 
-export const TimelineCard: React.FC<TimelineCardProps> = ({ event }) => {
+export const TimelineCard: React.FC<TimelineCardProps> = ({
+  event,
+  currentUserId,
+  onReport,
+  onBlockUser,
+}) => {
   const badge = getBadgeConfig(event.type);
   const timeAgo = formatRelativeTime(event.occurred_at);
   const authorName = event.author?.full_name || 'Caregiver';
+
+  const handleOptionsPress = () => {
+    Alert.alert('Care Update Options', `Posted by ${authorName}`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: '🚩 Report Note',
+        onPress: () => {
+          Alert.alert(
+            'Report Content',
+            'Would you like to report this note to our moderation team? We review reports within 24 hours. For urgent safety concerns, contact support@elderlycarehub.com.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              {
+                text: 'Submit Report',
+                style: 'destructive',
+                onPress: () => {
+                  onReport?.(event);
+                },
+              },
+            ]
+          );
+        },
+      },
+      ...(onBlockUser && event.created_by && event.created_by !== currentUserId
+        ? [
+            {
+              text: '🚫 Block Caregiver',
+              style: 'destructive' as const,
+              onPress: () => {
+                Alert.alert(
+                  'Block Caregiver',
+                  `Are you sure you want to block ${authorName}? You will no longer see updates from this caregiver.`,
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Block Caregiver',
+                      style: 'destructive' as const,
+                      onPress: () => {
+                        onBlockUser(event.created_by, authorName);
+                      },
+                    },
+                  ]
+                );
+              },
+            },
+          ]
+        : []),
+    ]);
+  };
 
   return (
     <View style={styles.card}>
@@ -94,6 +151,17 @@ export const TimelineCard: React.FC<TimelineCardProps> = ({ event }) => {
             Logged by <Text style={styles.authorHighlight}>{authorName}</Text>
           </Text>
         </View>
+
+        {onReport || onBlockUser ? (
+          <TouchableOpacity
+            style={styles.moreOptionsBtn}
+            onPress={handleOptionsPress}
+            accessibilityRole="button"
+            accessibilityLabel="Note options"
+          >
+            <Text style={styles.moreOptionsText}>•••</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
     </View>
   );
@@ -181,5 +249,19 @@ const styles = StyleSheet.create({
   authorHighlight: {
     color: '#0F172A',
     fontWeight: '600',
+  },
+  moreOptionsBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  moreOptionsText: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '700',
+    letterSpacing: 1,
   },
 });
